@@ -1,0 +1,208 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "update": "Update",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "actions": "Actions",
+    "yes": "Yes",
+    "no": "No",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "close": "Close",
+    "open": "Open",
+    "view": "View",
+    "download": "Download",
+    "upload": "Upload",
+    "share": "Share",
+    "copy": "Copy",
+    "move": "Move",
+    "rename": "Rename",
+    "refresh": "Refresh",
+    "settings": "Settings",
+    "profile": "Profile",
+    "logout": "Logout",
+    "login": "Login",
+    "register": "Register"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign In",
+      "subtitle": "Welcome back to ADX CORE",
+      "email": "Email",
+      "password": "Password",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "signIn": "Sign In",
+      "noAccount": "Don't have an account?",
+      "signUp": "Sign up",
+      "errors": {
+        "invalidCredentials": "Invalid email or password",
+        "accountLocked": "Account is locked",
+        "emailRequired": "Email is required",
+        "passwordRequired": "Password is required"
+      }
+    },
+    "register": {
+      "title": "Create Account",
+      "subtitle": "Join ADX CORE today",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "createAccount": "Create Account",
+      "hasAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "errors": {
+        "emailExists": "Email already exists",
+        "passwordMismatch": "Passwords don't match",
+        "weakPassword": "Password is too weak"
+      }
+    },
+    "forgotPassword": {
+      "title": "Reset Password",
+      "subtitle": "Enter your email to reset your password",
+      "email": "Email",
+      "sendReset": "Send Reset Link",
+      "backToLogin": "Back to login",
+      "success": "Reset link sent to your email"
+    }
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "tenants": "Tenants",
+    "files": "Files",
+    "workflows": "Workflows",
+    "settings": "Settings",
+    "profile": "Profile",
+    "analytics": "Analytics",
+    "reports": "Reports",
+    "integrations": "Integrations",
+    "security": "Security",
+    "billing": "Billing",
+    "support": "Support"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back, {{name}}!",
+    "overview": "Overview",
+    "recentActivity": "Recent Activity",
+    "quickActions": "Quick Actions",
+    "stats": {
+      "totalUsers": "Total Users",
+      "activeWorkflows": "Active Workflows",
+      "filesStored": "Files Stored",
+      "apiCalls": "API Calls Today"
+    }
+  },
+  "users": {
+    "title": "Users",
+    "addUser": "Add User",
+    "editUser": "Edit User",
+    "deleteUser": "Delete User",
+    "userDetails": "User Details",
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "status": "Status",
+      "lastLogin": "Last Login",
+      "createdAt": "Created"
+    },
+    "roles": {
+      "admin": "Admin",
+      "user": "User",
+      "viewer": "Viewer"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "pending": "Pending"
+    }
+  },
+  "files": {
+    "title": "Files",
+    "upload": "Upload Files",
+    "createFolder": "Create Folder",
+    "myFiles": "My Files",
+    "sharedFiles": "Shared Files",
+    "recentFiles": "Recent Files",
+    "fileDetails": "File Details",
+    "permissions": "Permissions",
+    "sharing": "Sharing",
+    "versions": "Versions",
+    "properties": {
+      "name": "Name",
+      "size": "Size",
+      "type": "Type",
+      "modified": "Modified",
+      "owner": "Owner"
+    }
+  },
+  "workflows": {
+    "title": "Workflows",
+    "createWorkflow": "Create Workflow",
+    "editWorkflow": "Edit Workflow",
+    "runWorkflow": "Run Workflow",
+    "workflowHistory": "Workflow History",
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "paused": "Paused",
+      "archived": "Archived"
+    },
+    "triggers": {
+      "manual": "Manual",
+      "schedule": "Schedule",
+      "event": "Event"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "general": "General",
+    "security": "Security",
+    "notifications": "Notifications",
+    "integrations": "Integrations",
+    "billing": "Billing",
+    "advanced": "Advanced",
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "language": "Language",
+      "timezone": "Timezone",
+      "themes": {
+        "light": "Light",
+        "dark": "Dark",
+        "auto": "Auto"
+      }
+    }
+  },
+  "errors": {
+    "generic": "Something went wrong",
+    "network": "Network error",
+    "unauthorized": "Unauthorized access",
+    "forbidden": "Access forbidden",
+    "notFound": "Not found",
+    "serverError": "Server error",
+    "validation": "Validation error"
+  },
+  "validation": {
+    "required": "This field is required",
+    "email": "Please enter a valid email",
+    "minLength": "Must be at least {{min}} characters",
+    "maxLength": "Must be no more than {{max}} characters",
+    "passwordMatch": "Passwords must match"
+  }
+}

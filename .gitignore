@@ -1,0 +1,102 @@
+# Rust
+/target/
+adx-core/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker
+.dockerignore
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Node.js (for future frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# Build outputs
+dist/
+build/
+out/
+
+# Test coverage
+coverage/
+*.lcov
+
+# Backup files
+*.bak
+*.backup
+
+# Local development
+.local/
+local/
+
+# Secrets
+secrets/
+*.pem
+*.key
+*.crt
+
+# AI/ML specific (for future AI modules)
+*.model
+*.pkl
+*.h5
+*.pb
+data/raw/
+data/processed/
+models/trained/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Python cache (for future Python components)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/

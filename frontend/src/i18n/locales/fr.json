@@ -1,0 +1,60 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "update": "Mettre à jour",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "sort": "Trier",
+    "actions": "Actions",
+    "yes": "Oui",
+    "no": "Non",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "close": "Fermer",
+    "open": "Ouvrir",
+    "view": "Voir",
+    "download": "Télécharger",
+    "upload": "Téléverser",
+    "share": "Partager",
+    "copy": "Copier",
+    "move": "Déplacer",
+    "rename": "Renommer",
+    "refresh": "Actualiser",
+    "settings": "Paramètres",
+    "profile": "Profil",
+    "logout": "Déconnexion",
+    "login": "Connexion",
+    "register": "S'inscrire"
+  },
+  "auth": {
+    "login": {
+      "title": "Se connecter",
+      "subtitle": "Bienvenue sur ADX CORE",
+      "email": "Email",
+      "password": "Mot de passe",
+      "rememberMe": "Se souvenir de moi",
+      "forgotPassword": "Mot de passe oublié?",
+      "signIn": "Se connecter",
+      "noAccount": "Pas de compte?",
+      "signUp": "S'inscrire"
+    }
+  },
+  "navigation": {
+    "dashboard": "Tableau de bord",
+    "users": "Utilisateurs",
+    "tenants": "Locataires",
+    "files": "Fichiers",
+    "workflows": "Flux de travail",
+    "settings": "Paramètres",
+    "profile": "Profil"
+  }
+}

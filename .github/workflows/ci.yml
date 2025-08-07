@@ -1,0 +1,208 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: dev_password
+          POSTGRES_USER: adx_user
+          POSTGRES_DB: adx_core
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "adx-core -> target"
+
+    - name: Check formatting
+      run: |
+        cd adx-core
+        cargo fmt --all -- --check
+
+    - name: Run Clippy
+      run: |
+        cd adx-core
+        cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Run tests
+      run: |
+        cd adx-core
+        cargo test --workspace --verbose
+      env:
+        DATABASE_URL: postgresql://adx_user:dev_password@localhost:5432/adx_core
+        REDIS_URL: redis://localhost:6379
+
+    - name: Build all services
+      run: |
+        cd adx-core
+        cargo build --workspace --release
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+
+    - name: Run security audit
+      run: |
+        cd adx-core
+        cargo audit
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "adx-core -> target"
+
+    - name: Start infrastructure
+      run: |
+        cd adx-core/infrastructure/docker
+        docker compose -f docker-compose.dev.yml up -d
+        sleep 30
+
+    - name: Run integration tests
+      run: |
+        cd adx-core
+        cargo test --test integration --verbose
+      env:
+        DATABASE_URL: postgresql://adx_user:dev_password@localhost:5432/adx_core
+        REDIS_URL: redis://localhost:6379
+        TEMPORAL_URL: localhost:7233
+
+    - name: Stop infrastructure
+      if: always()
+      run: |
+        cd adx-core/infrastructure/docker
+        docker compose -f docker-compose.dev.yml down
+
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push API Gateway
+      uses: docker/build-push-action@v5
+      with:
+        context: ./adx-core
+        file: ./adx-core/services/api-gateway/Dockerfile
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}/api-gateway:latest
+          ghcr.io/${{ github.repository }}/api-gateway:${{ github.sha }}
+
+    - name: Build and push Auth Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./adx-core
+        file: ./adx-core/services/auth-service/Dockerfile
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}/auth-service:latest
+          ghcr.io/${{ github.repository }}/auth-service:${{ github.sha }}
+
+    - name: Build and push User Service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./adx-core
+        file: ./adx-core/services/user-service/Dockerfile
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}/user-service:latest
+          ghcr.io/${{ github.repository }}/user-service:${{ github.sha }}
+
+  update-tracking:
+    name: Update Project Tracking
+    runs-on: ubuntu-latest
+    needs: [test, security, integration]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Update PROJECT_TRACKING.md
+      run: |
+        # Update last successful build info
+        sed -i "s/Last Updated: .*/Last Updated: $(date -u +%Y-%m-%d)/" PROJECT_TRACKING.md
+        sed -i "s/Last Build: .*/Last Build: ✅ $(date -u +%Y-%m-%d) - Commit ${{ github.sha }}/" PROJECT_TRACKING.md
+
+    - name: Commit tracking updates
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add PROJECT_TRACKING.md
+        git diff --staged --quiet || git commit -m "🤖 Auto-update project tracking [skip ci]"
+        git push

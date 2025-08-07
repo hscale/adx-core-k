@@ -1,0 +1,47 @@
+{
+  "name": "@adx-core/shell",
+  "version": "1.0.0",
+  "description": "ADX CORE Shell Application - Module Federation Host",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "@tanstack/react-query": "^5.8.4",
+    "zustand": "^4.4.7",
+    "react-i18next": "^13.5.0",
+    "@headlessui/react": "^1.7.17",
+    "framer-motion": "^10.16.5",
+    "lucide-react": "^0.294.0",
+    "tailwindcss": "^3.3.6",
+    "@adx-core/design-system": "workspace:*",
+    "@adx-core/shared-types": "workspace:*",
+    "@adx-core/shared-utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@originjs/vite-plugin-federation": "^1.3.5",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@typescript-eslint/eslint-plugin": "^6.10.0",
+    "@typescript-eslint/parser": "^6.10.0",
+    "@vitejs/plugin-react": "^4.1.1",
+    "@vitest/ui": "^0.34.6",
+    "eslint": "^8.53.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.4",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0",
+    "vitest": "^0.34.6",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31"
+  }
+}

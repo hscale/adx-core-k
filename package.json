@@ -1,0 +1,113 @@
+{
+  "name": "adx-core",
+  "version": "1.0.0",
+  "description": "ADX CORE - Multi-tenant SaaS Platform",
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "micro-frontends/*",
+    "bff-services/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:frontend",
+    "dev:frontend": "./scripts/dev-start-frontend.sh",
+    "dev:backend": "cd adx-core && ./scripts/dev-start.sh",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    
+    "dev:shell": "cd micro-frontends/shell && npm run dev",
+    "dev:auth": "cd micro-frontends/auth-micro-app && npm run dev",
+    "dev:tenant": "cd micro-frontends/tenant-micro-app && npm run dev",
+    "dev:file": "cd micro-frontends/file-micro-app && npm run dev",
+    "dev:user": "cd micro-frontends/user-micro-app && npm run dev",
+    "dev:workflow": "cd micro-frontends/workflow-micro-app && npm run dev",
+    "dev:dashboard": "cd micro-frontends/dashboard-micro-app && npm run dev",
+    
+    "dev:auth-bff": "cd bff-services/auth-bff && npm run dev",
+    "dev:tenant-bff": "cd bff-services/tenant-bff && npm run dev",
+    "dev:file-bff": "cd bff-services/file-bff && cargo run",
+    "dev:user-bff": "cd bff-services/user-bff && cargo run",
+    "dev:workflow-bff": "cd bff-services/workflow-bff && cargo run",
+    "dev:dashboard-bff": "cd bff-services/dashboard-bff && cargo run",
+    
+    "build": "npm run build:frontend",
+    "build:frontend": "npm run build:shell && npm run build:micro-frontends",
+    "build:shell": "cd micro-frontends/shell && npm run build",
+    "build:micro-frontends": "npm run build:auth && npm run build:tenant && npm run build:file && npm run build:user && npm run build:workflow && npm run build:dashboard",
+    "build:auth": "cd micro-frontends/auth-micro-app && npm run build",
+    "build:tenant": "cd micro-frontends/tenant-micro-app && npm run build",
+    "build:file": "cd micro-frontends/file-micro-app && npm run build",
+    "build:user": "cd micro-frontends/user-micro-app && npm run build",
+    "build:workflow": "cd micro-frontends/workflow-micro-app && npm run build",
+    "build:dashboard": "cd micro-frontends/dashboard-micro-app && npm run build",
+    
+    "build:web": "npm run build:frontend",
+    "build:desktop": "cd frontend && npm run build:desktop",
+    "build:mobile": "cd frontend && npm run build:mobile",
+    
+    "test": "npm run test:frontend",
+    "test:frontend": "npm run test:shell && npm run test:micro-frontends",
+    "test:shell": "cd micro-frontends/shell && npm run test",
+    "test:micro-frontends": "npm run test:auth && npm run test:tenant && npm run test:file && npm run test:user && npm run test:workflow && npm run test:dashboard",
+    "test:auth": "cd micro-frontends/auth-micro-app && npm run test",
+    "test:tenant": "cd micro-frontends/tenant-micro-app && npm run test",
+    "test:file": "cd micro-frontends/file-micro-app && npm run test",
+    "test:user": "cd micro-frontends/user-micro-app && npm run test",
+    "test:workflow": "cd micro-frontends/workflow-micro-app && npm run test",
+    "test:dashboard": "cd micro-frontends/dashboard-micro-app && npm run test",
+    
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test",
+    
+    "lint": "npm run lint:frontend",
+    "lint:frontend": "npm run lint:shell && npm run lint:micro-frontends",
+    "lint:shell": "cd micro-frontends/shell && npm run lint",
+    "lint:micro-frontends": "npm run lint:auth && npm run lint:tenant && npm run lint:file && npm run lint:user && npm run lint:workflow && npm run lint:dashboard",
+    "lint:auth": "cd micro-frontends/auth-micro-app && npm run lint",
+    "lint:tenant": "cd micro-frontends/tenant-micro-app && npm run lint",
+    "lint:file": "cd micro-frontends/file-micro-app && npm run lint",
+    "lint:user": "cd micro-frontends/user-micro-app && npm run lint",
+    "lint:workflow": "cd micro-frontends/workflow-micro-app && npm run lint",
+    "lint:dashboard": "cd micro-frontends/dashboard-micro-app && npm run lint",
+    
+    "analyze:bundles": "npm run analyze:shell && npm run analyze:micro-frontends",
+    "analyze:shell": "cd micro-frontends/shell && npm run build && npx vite-bundle-analyzer dist",
+    "analyze:micro-frontends": "npm run analyze:auth && npm run analyze:tenant && npm run analyze:file && npm run analyze:user && npm run analyze:workflow && npm run analyze:dashboard",
+    "analyze:auth": "cd micro-frontends/auth-micro-app && npm run build && npx vite-bundle-analyzer dist",
+    "analyze:tenant": "cd micro-frontends/tenant-micro-app && npm run build && npx vite-bundle-analyzer dist",
+    "analyze:file": "cd micro-frontends/file-micro-app && npm run build && npx vite-bundle-analyzer dist",
+    "analyze:user": "cd micro-frontends/user-micro-app && npm run build && npx vite-bundle-analyzer dist",
+    "analyze:workflow": "cd micro-frontends/workflow-micro-app && npm run build && npx vite-bundle-analyzer dist",
+    "analyze:dashboard": "cd micro-frontends/dashboard-micro-app && npm run build && npx vite-bundle-analyzer dist",
+    
+    "create:micro-frontend": "./scripts/create-micro-frontend.sh",
+    "status": "./status.sh",
+    "clean": "npm run clean:frontend && npm run clean:backend",
+    "clean:frontend": "rm -rf micro-frontends/*/dist micro-frontends/*/node_modules frontend/dist frontend/node_modules",
+    "clean:backend": "cd adx-core && cargo clean",
+    
+    "install:all": "npm install && npm run install:frontend && npm run install:bff",
+    "install:frontend": "cd frontend && npm install && npm run install:micro-frontends",
+    "install:micro-frontends": "npm run install:shell && npm run install:auth && npm run install:tenant && npm run install:file && npm run install:user && npm run install:workflow && npm run install:dashboard",
+    "install:shell": "cd micro-frontends/shell && npm install",
+    "install:auth": "cd micro-frontends/auth-micro-app && npm install",
+    "install:tenant": "cd micro-frontends/tenant-micro-app && npm install",
+    "install:file": "cd micro-frontends/file-micro-app && npm install",
+    "install:user": "cd micro-frontends/user-micro-app && npm install",
+    "install:workflow": "cd micro-frontends/workflow-micro-app && npm install",
+    "install:dashboard": "cd micro-frontends/dashboard-micro-app && npm install",
+    "install:bff": "npm run install:auth-bff && npm run install:tenant-bff",
+    "install:auth-bff": "cd bff-services/auth-bff && npm install",
+    "install:tenant-bff": "cd bff-services/tenant-bff && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "vite-bundle-analyzer": "^0.7.0",
+    "vitest": "^0.34.6",
+    "@playwright/test": "^1.40.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
