@@ -145,19 +145,21 @@ ADX CORE is a temporal-first, multi-tenant SaaS platform that provides enterpris
 5. WHEN content is localized THEN the system SHALL support right-to-left (RTL) languages and proper date/time/number formatting per locale
 6. WHEN administrators manage content THEN the system SHALL provide translation management tools for custom content and tenant-specific translations
 
-### Requirement 10: Plugin and Extension System with Default Plugins
+### Requirement 10: Module System and Marketplace with Default Modules
 
-**User Story:** As a developer and business user, I want to extend ADX CORE with custom functionality through a plugin system, including essential business plugins that ship by default, so that I can add features without modifying the core platform.
+**User Story:** As a developer and business user, I want to extend ADX CORE with custom functionality through a comprehensive module system, including essential business modules that ship by default, so that I can add features without modifying the core platform while benefiting from a curated marketplace experience.
 
 #### Acceptance Criteria
 
-1. WHEN plugins are developed THEN the system SHALL provide a WordPress-style plugin architecture with standardized interfaces
-2. WHEN plugins are installed THEN the system SHALL support hot-loading without system restart and automatic dependency management
-3. WHEN plugins extend functionality THEN the system SHALL provide extension points for UI components, API endpoints, workflows, and database schemas
-4. WHEN the platform is deployed THEN the system SHALL include default first-party plugins (Client Management, Basic Analytics, File Sharing) that can be activated per tenant
-5. WHEN plugins are managed THEN the system SHALL provide a plugin marketplace, installation interface, and version management
-6. WHEN plugins interact THEN the system SHALL provide secure sandboxing, resource limits, and inter-plugin communication APIs
-7. WHEN plugins are distributed THEN the system SHALL support both free and premium plugins with licensing and payment integration
+1. WHEN modules are developed THEN the system SHALL provide a comprehensive module architecture with standardized interfaces, APIs, and development frameworks
+2. WHEN modules are installed THEN the system SHALL support hot-loading without system restart, automatic dependency resolution, and version compatibility checking
+3. WHEN modules extend functionality THEN the system SHALL provide extension points for UI components, API endpoints, Temporal workflows, database schemas, and cross-platform integrations
+4. WHEN the platform is deployed THEN the system SHALL include default first-party modules (Client Management, Basic Analytics, File Sharing, Project Management) that can be activated per tenant
+5. WHEN modules are managed THEN the system SHALL provide a comprehensive modules marketplace with discovery, ratings, reviews, installation interface, and version management
+6. WHEN modules interact THEN the system SHALL provide secure sandboxing, resource limits, inter-module communication APIs, and event-driven architecture
+7. WHEN modules are distributed THEN the system SHALL support free, premium, and enterprise modules with flexible licensing, payment integration, and subscription management
+8. WHEN modules are published THEN the system SHALL provide a developer portal with SDK, documentation, testing tools, and marketplace submission process
+9. WHEN modules are discovered THEN the system SHALL provide intelligent recommendations, category browsing, search functionality, and compatibility indicators
 
 ### Requirement 11: Temporal-First Hybrid AI Workflow Orchestration
 
@@ -171,7 +173,7 @@ ADX CORE is a temporal-first, multi-tenant SaaS platform that provides enterpris
    - Automatic retry, compensation, and error recovery for all operations
    - Complete workflow observability through Temporal UI and monitoring
    - Standard workflow templates accessible via API Gateway and BFF services
-2. WHEN AI intelligence is enabled through plugins THEN the system SHALL provide enhanced Temporal activities including:
+2. WHEN AI intelligence is enabled through modules THEN the system SHALL provide enhanced Temporal activities including:
    - AI-powered workflow planning and optimization activities
    - Intelligent exception handling and recovery activities
    - Workflow performance analysis and recommendation activities
@@ -180,13 +182,13 @@ ADX CORE is a temporal-first, multi-tenant SaaS platform that provides enterpris
    - **All Users**: Full Temporal workflow orchestration with rule-based automation activities
    - **Premium Users**: AI-enhanced Temporal activities with intelligent planning and optimization
    - **Enterprise Users**: Custom AI models integrated as Temporal activities with advanced workflow intelligence
-4. WHEN AI plugins are installed THEN the system SHALL maintain platform flexibility by:
-   - Implementing AI capabilities as Temporal activities within the plugin system
-   - Ensuring core Temporal workflows function independently of AI plugins
-   - Supporting multiple AI providers through pluggable Temporal activities
-   - Maintaining workflow compatibility when AI plugins are disabled or updated
+4. WHEN AI modules are installed THEN the system SHALL maintain platform flexibility by:
+   - Implementing AI capabilities as Temporal activities within the module system
+   - Ensuring core Temporal workflows function independently of AI modules
+   - Supporting multiple AI providers through modular Temporal activities
+   - Maintaining workflow compatibility when AI modules are disabled or updated
 5. WHEN workflows are executed THEN the system SHALL provide:
-   - Consistent Temporal workflow execution regardless of AI plugin status
+   - Consistent Temporal workflow execution regardless of AI module status
    - Seamless integration between core Temporal orchestration and AI-enhanced activities
    - Clear differentiation between rule-based and AI-enhanced workflow steps in Temporal UI
    - Comprehensive monitoring through Temporal metrics and custom observability

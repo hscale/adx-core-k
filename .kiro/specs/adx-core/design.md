@@ -293,187 +293,445 @@ impl ApiGateway {
     }
 }
 
-## Plugin System Architecture
+## Module System Architecture
 
-### WordPress-Style Plugin System
+### Comprehensive Module Framework
 
 ```rust
-// Core plugin trait - similar to WordPress plugin hooks
+// Core module trait - comprehensive extension system
 #[async_trait]
-pub trait AdxPlugin: Send + Sync {
-    // Plugin metadata
-    fn metadata(&self) -> PluginMetadata;
+pub trait AdxModule: Send + Sync {
+    // Module metadata and capabilities
+    fn metadata(&self) -> ModuleMetadata;
+    fn capabilities(&self) -> ModuleCapabilities;
+    fn dependencies(&self) -> Vec<ModuleDependency>;
     
     // Lifecycle hooks
-    async fn activate(&self, context: &PluginContext) -> Result<(), PluginError>;
-    async fn deactivate(&self) -> Result<(), PluginError>;
-    async fn uninstall(&self) -> Result<(), PluginError>;
+    async fn install(&self, context: &ModuleContext) -> Result<(), ModuleError>;
+    async fn activate(&self, context: &ModuleContext) -> Result<(), ModuleError>;
+    async fn deactivate(&self) -> Result<(), ModuleError>;
+    async fn uninstall(&self) -> Result<(), ModuleError>;
+    async fn update(&self, from_version: &str, context: &ModuleContext) -> Result<(), ModuleError>;
     
-    // Extension points (similar to WordPress hooks)
-    fn register_routes(&self) -> Vec<PluginRoute>;
+    // Extension points
+    fn register_routes(&self) -> Vec<ModuleRoute>;
     fn register_ui_components(&self) -> Vec<UiComponent>;
     fn register_workflows(&self) -> Vec<WorkflowDefinition>;
     fn register_database_migrations(&self) -> Vec<Migration>;
     fn register_event_handlers(&self) -> Vec<EventHandler>;
+    fn register_permissions(&self) -> Vec<Permission>;
+    fn register_settings(&self) -> Vec<ModuleSetting>;
+    
+    // Cross-platform support
+    fn register_desktop_features(&self) -> Vec<DesktopFeature>;
+    fn register_mobile_features(&self) -> Vec<MobileFeature>;
+    fn register_web_components(&self) -> Vec<WebComponent>;
 }
 
-// Plugin manager (similar to WordPress plugin system)
-pub struct PluginManager {
-    plugins: HashMap<String, Box<dyn AdxPlugin>>,
-    plugin_registry: Arc<PluginRegistry>,
+// Module manager with comprehensive lifecycle management
+pub struct ModuleManager {
+    modules: HashMap<String, Box<dyn AdxModule>>,
+    module_registry: Arc<ModuleRegistry>,
+    marketplace: Arc<ModuleMarketplace>,
     event_bus: Arc<EventBus>,
+    dependency_resolver: Arc<DependencyResolver>,
+    sandbox_manager: Arc<SandboxManager>,
 }
 
-impl PluginManager {
-    // WordPress-style plugin loading
-    pub async fn load_plugin(&mut self, plugin_path: &Path) -> Result<(), PluginError> {
-        let plugin = self.load_plugin_from_path(plugin_path).await?;
-        self.validate_dependencies(&plugin).await?;
-        self.register_plugin(plugin).await?;
+impl ModuleManager {
+    // Advanced module loading with dependency resolution
+    pub async fn install_module(&mut self, module_id: &str, tenant_id: TenantId) -> Result<(), ModuleError> {
+        let module_info = self.marketplace.get_module_info(module_id).await?;
+        
+        // Resolve and validate dependencies
+        let dependencies = self.dependency_resolver.resolve_dependencies(&module_info.dependencies).await?;
+        
+        // Download and validate module
+        let module_package = self.marketplace.download_module(module_id).await?;
+        self.validate_module_security(&module_package).await?;
+        
+        // Install dependencies first
+        for dep in dependencies {
+            if !self.is_module_installed(&dep.id) {
+                self.install_module(&dep.id, tenant_id).await?;
+            }
+        }
+        
+        // Load and install module
+        let module = self.load_module_from_package(module_package).await?;
+        module.install(&ModuleContext::new(tenant_id)).await?;
+        self.register_module(module_id.to_string(), module).await?;
+        
         Ok(())
     }
     
-    // Hot-reload plugins without restart
-    pub async fn reload_plugin(&mut self, plugin_name: &str) -> Result<(), PluginError> {
-        self.deactivate_plugin(plugin_name).await?;
-        self.load_plugin_by_name(plugin_name).await?;
-        self.activate_plugin(plugin_name).await?;
+    // Hot-reload modules without restart
+    pub async fn reload_module(&mut self, module_id: &str) -> Result<(), ModuleError> {
+        self.deactivate_module(module_id).await?;
+        self.load_module_by_id(module_id).await?;
+        self.activate_module(module_id).await?;
         Ok(())
+    }
+    
+    // Batch operations for multiple modules
+    pub async fn bulk_install_modules(&mut self, module_ids: Vec<String>, tenant_id: TenantId) -> Result<Vec<ModuleInstallResult>, ModuleError> {
+        let mut results = Vec::new();
+        
+        for module_id in module_ids {
+            let result = match self.install_module(&module_id, tenant_id).await {
+                Ok(_) => ModuleInstallResult::Success(module_id.clone()),
+                Err(e) => ModuleInstallResult::Failed(module_id.clone(), e),
+            };
+            results.push(result);
+        }
+        
+        Ok(results)
     }
 }
 ```
 
-### Plugin Extension Points
+### Module Extension Points and Event System
 
 ```rust
-// Event system (like WordPress actions/filters)
+// Advanced event system with typed events and middleware
 pub struct EventBus {
     handlers: HashMap<String, Vec<Box<dyn EventHandler>>>,
+    middleware: Vec<Box<dyn EventMiddleware>>,
+    event_history: Arc<RwLock<EventHistory>>,
 }
 
 impl EventBus {
-    // WordPress-style action hooks
-    pub async fn do_action(&self, action: &str, data: &dyn Any) -> Result<(), Error> {
-        if let Some(handlers) = self.handlers.get(action) {
+    // Typed action hooks with middleware support
+    pub async fn emit_event<T: Event>(&self, event: T) -> Result<(), Error> {
+        // Apply middleware
+        let processed_event = self.apply_middleware(event).await?;
+        
+        // Record event for debugging and analytics
+        self.event_history.write().await.record_event(&processed_event);
+        
+        // Execute handlers
+        if let Some(handlers) = self.handlers.get(&processed_event.event_type()) {
             for handler in handlers {
-                handler.handle(data).await?;
+                handler.handle(&processed_event).await?;
             }
         }
         Ok(())
     }
     
-    // WordPress-style filter hooks
-    pub async fn apply_filters<T>(&self, filter: &str, value: T) -> Result<T, Error> {
-        let mut result = value;
-        if let Some(handlers) = self.handlers.get(filter) {
+    // Advanced filter system with validation
+    pub async fn apply_filters<T: FilterableData>(&self, filter_name: &str, data: T) -> Result<T, Error> {
+        let mut result = data;
+        
+        if let Some(handlers) = self.handlers.get(filter_name) {
             for handler in handlers {
                 result = handler.filter(result).await?;
+                
+                // Validate filtered data
+                if !result.is_valid() {
+                    return Err(Error::InvalidFilterResult(filter_name.to_string()));
+                }
             }
         }
+        
         Ok(result)
     }
+    
+    // Module-specific event namespacing
+    pub async fn emit_module_event(&self, module_id: &str, event_name: &str, data: &dyn Any) -> Result<(), Error> {
+        let namespaced_event = format!("module:{}:{}", module_id, event_name);
+        self.emit_event(GenericEvent::new(namespaced_event, data)).await
+    }
+}
+
+// Module capability system
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleCapabilities {
+    pub ui_extensions: Vec<UiExtensionPoint>,
+    pub api_extensions: Vec<ApiExtensionPoint>,
+    pub workflow_extensions: Vec<WorkflowExtensionPoint>,
+    pub database_extensions: Vec<DatabaseExtensionPoint>,
+    pub cross_platform_features: CrossPlatformFeatures,
+    pub required_permissions: Vec<Permission>,
+    pub resource_requirements: ResourceRequirements,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrossPlatformFeatures {
+    pub web_support: bool,
+    pub desktop_support: Vec<DesktopPlatform>,
+    pub mobile_support: Vec<MobilePlatform>,
+    pub native_integrations: Vec<NativeIntegration>,
 }
 ```
 
-### Plugin Marketplace Architecture
+### Module Marketplace Architecture
 
 ```rust
-// Plugin marketplace (like WordPress.org plugins)
+// Comprehensive module marketplace with advanced features
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PluginListing {
+pub struct ModuleListing {
     pub id: String,
     pub name: String,
     pub description: String,
+    pub long_description: String,
     pub version: String,
-    pub author: String,
+    pub author: ModuleAuthor,
+    pub category: ModuleCategory,
+    pub subcategory: Option<String>,
     pub price: Option<Decimal>,
+    pub pricing_model: PricingModel,
     pub rating: f32,
+    pub review_count: u32,
     pub downloads: u64,
-    pub screenshots: Vec<String>,
+    pub active_installations: u64,
+    pub screenshots: Vec<Screenshot>,
+    pub demo_url: Option<String>,
+    pub documentation_url: String,
+    pub support_url: String,
     pub tags: Vec<String>,
     pub supported_platforms: Vec<Platform>,
+    pub compatibility: CompatibilityInfo,
+    pub security_scan_results: SecurityScanResults,
+    pub performance_metrics: PerformanceMetrics,
+    pub last_updated: DateTime<Utc>,
+    pub changelog: Vec<ChangelogEntry>,
 }
 
-pub struct PluginMarketplace {
-    registry: Arc<PluginRegistry>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PricingModel {
+    Free,
+    OneTime(Decimal),
+    Subscription { monthly: Decimal, yearly: Option<Decimal> },
+    Usage { base_price: Decimal, per_unit: Decimal, unit_type: String },
+    Enterprise, // Contact for pricing
+}
+
+pub struct ModuleMarketplace {
+    registry: Arc<ModuleRegistry>,
     payment_processor: Arc<PaymentProcessor>,
     storage: Arc<dyn FileStorage>,
+    recommendation_engine: Arc<RecommendationEngine>,
+    security_scanner: Arc<SecurityScanner>,
+    analytics: Arc<MarketplaceAnalytics>,
+    review_system: Arc<ReviewSystem>,
 }
 
-impl PluginMarketplace {
-    pub async fn search_plugins(&self, query: &str, filters: PluginFilters) -> Result<Vec<PluginListing>, Error> {
-        // Search plugins like WordPress plugin directory
-        self.registry.search(query, filters).await
-    }
-    
-    pub async fn install_plugin(&self, plugin_id: &str, tenant_id: TenantId) -> Result<(), Error> {
-        // WordPress-style one-click install
-        let plugin_info = self.registry.get_plugin_info(plugin_id).await?;
+impl ModuleMarketplace {
+    // Advanced search with AI-powered recommendations
+    pub async fn search_modules(&self, query: &str, filters: ModuleFilters, user_context: &UserContext) -> Result<ModuleSearchResults, Error> {
+        let mut results = self.registry.search(query, filters).await?;
         
-        // Handle premium plugins
-        if plugin_info.is_premium {
-            self.process_payment(plugin_id, tenant_id).await?;
+        // Apply AI-powered ranking based on user context
+        results = self.recommendation_engine.rank_results(results, user_context).await?;
+        
+        // Add compatibility indicators
+        for result in &mut results.modules {
+            result.compatibility_score = self.calculate_compatibility_score(result, user_context).await?;
         }
         
-        // Download and install
-        self.download_and_install(plugin_id, tenant_id).await?;
+        Ok(results)
+    }
+    
+    // Intelligent module recommendations
+    pub async fn get_recommendations(&self, user_context: &UserContext, limit: usize) -> Result<Vec<ModuleListing>, Error> {
+        let user_profile = self.analytics.get_user_profile(&user_context.user_id).await?;
+        let tenant_profile = self.analytics.get_tenant_profile(&user_context.tenant_id).await?;
         
-        // Activate plugin
-        self.activate_plugin(plugin_id, tenant_id).await?;
+        self.recommendation_engine.generate_recommendations(user_profile, tenant_profile, limit).await
+    }
+    
+    // Comprehensive module installation with workflow orchestration
+    pub async fn install_module(&self, module_id: &str, tenant_id: TenantId, user_id: UserId) -> Result<InstallationResult, Error> {
+        let module_info = self.registry.get_module_info(module_id).await?;
         
-        Ok(())
+        // Security validation
+        let security_results = self.security_scanner.scan_module(module_id).await?;
+        if !security_results.is_safe() {
+            return Err(Error::SecurityValidationFailed(security_results.issues));
+        }
+        
+        // License and payment processing
+        if let Some(price) = module_info.price {
+            let payment_result = self.payment_processor.process_payment(
+                tenant_id,
+                user_id,
+                price,
+                &module_info.pricing_model,
+            ).await?;
+            
+            if !payment_result.is_successful() {
+                return Err(Error::PaymentFailed(payment_result.error));
+            }
+        }
+        
+        // Initiate installation workflow
+        let installation_workflow = InstallationWorkflow::new(
+            module_id.to_string(),
+            tenant_id,
+            user_id,
+            module_info,
+        );
+        
+        let workflow_result = self.execute_installation_workflow(installation_workflow).await?;
+        
+        // Record analytics
+        self.analytics.record_installation(module_id, tenant_id, user_id).await?;
+        
+        Ok(workflow_result)
+    }
+    
+    // Module discovery and browsing
+    pub async fn browse_categories(&self) -> Result<Vec<ModuleCategory>, Error> {
+        self.registry.get_categories_with_counts().await
+    }
+    
+    // Featured and trending modules
+    pub async fn get_featured_modules(&self, limit: usize) -> Result<Vec<ModuleListing>, Error> {
+        self.registry.get_featured_modules(limit).await
+    }
+    
+    pub async fn get_trending_modules(&self, timeframe: Timeframe, limit: usize) -> Result<Vec<ModuleListing>, Error> {
+        self.analytics.get_trending_modules(timeframe, limit).await
     }
 }
 ```
 
-### Default First-Party Plugins
+### Default First-Party Modules
 
 ```rust
-// Default Plugin: Client & Customer Management
-pub struct ClientManagementPlugin {
+// Default Module: Client & Customer Management
+pub struct ClientManagementModule {
     client_repo: Arc<dyn ClientRepository>,
     portal_builder: ClientPortalBuilder,
     notification_service: Arc<NotificationService>,
+    workflow_service: Arc<WorkflowService>,
 }
 
 #[async_trait]
-impl AdxPlugin for ClientManagementPlugin {
-    fn metadata(&self) -> PluginMetadata {
-        PluginMetadata {
+impl AdxModule for ClientManagementModule {
+    fn metadata(&self) -> ModuleMetadata {
+        ModuleMetadata {
+            id: "adx-core-client-management".to_string(),
             name: "Client & Customer Management".to_string(),
             version: "1.0.0".to_string(),
-            description: "Manage external clients and customers with branded portals".to_string(),
-            author: "ADX CORE Team".to_string(),
-            category: "Business Management".to_string(),
+            description: "Comprehensive client and customer management with branded portals".to_string(),
+            long_description: "Full-featured client management system with customer portals, project tracking, and communication tools".to_string(),
+            author: ModuleAuthor {
+                name: "ADX CORE Team".to_string(),
+                email: "modules@adxcore.com".to_string(),
+                website: "https://adxcore.com".to_string(),
+            },
+            category: ModuleCategory::BusinessManagement,
             is_default: true, // Ships with platform
             price: None, // Free with core platform
-            permissions: vec![Permission::ClientManagement, Permission::PortalAccess],
+            pricing_model: PricingModel::Free,
+            permissions: vec![Permission::ClientManagement, Permission::PortalAccess, Permission::FileSharing],
+            min_platform_version: "2.0.0".to_string(),
         }
     }
 
-    async fn activate(&self, context: &PluginContext) -> Result<(), PluginError> {
+    fn capabilities(&self) -> ModuleCapabilities {
+        ModuleCapabilities {
+            ui_extensions: vec![
+                UiExtensionPoint::Dashboard("client-dashboard".to_string()),
+                UiExtensionPoint::Navigation("client-nav".to_string()),
+                UiExtensionPoint::Settings("client-settings".to_string()),
+            ],
+            api_extensions: vec![
+                ApiExtensionPoint::RestEndpoints(vec!["/api/clients", "/api/client-portal", "/api/client-projects"]),
+                ApiExtensionPoint::GraphQLTypes(vec!["Client", "ClientProject", "PortalAccess"]),
+            ],
+            workflow_extensions: vec![
+                WorkflowExtensionPoint::Activities(vec!["client_onboarding", "portal_setup", "client_notification"]),
+                WorkflowExtensionPoint::Workflows(vec!["client_lifecycle", "portal_management"]),
+            ],
+            database_extensions: vec![
+                DatabaseExtensionPoint::Tables(vec!["clients", "client_projects", "client_file_access"]),
+                DatabaseExtensionPoint::Views(vec!["client_dashboard_view", "portal_activity_view"]),
+            ],
+            cross_platform_features: CrossPlatformFeatures {
+                web_support: true,
+                desktop_support: vec![DesktopPlatform::Windows, DesktopPlatform::MacOS, DesktopPlatform::Linux],
+                mobile_support: vec![MobilePlatform::iOS, MobilePlatform::Android],
+                native_integrations: vec![
+                    NativeIntegration::FileSystem,
+                    NativeIntegration::Notifications,
+                    NativeIntegration::Calendar,
+                ],
+            },
+            required_permissions: vec![Permission::ClientManagement, Permission::PortalAccess],
+            resource_requirements: ResourceRequirements {
+                min_memory_mb: 128,
+                max_memory_mb: 512,
+                cpu_cores: 1,
+                storage_mb: 50,
+                network_required: true,
+            },
+        }
+    }
+
+    fn dependencies(&self) -> Vec<ModuleDependency> {
+        vec![
+            ModuleDependency {
+                module_id: "adx-core-file-management".to_string(),
+                version_requirement: ">=1.0.0".to_string(),
+                optional: false,
+            },
+            ModuleDependency {
+                module_id: "adx-core-notifications".to_string(),
+                version_requirement: ">=1.0.0".to_string(),
+                optional: true,
+            },
+        ]
+    }
+
+    async fn install(&self, context: &ModuleContext) -> Result<(), ModuleError> {
+        // Create database tables
+        for migration in self.register_database_migrations() {
+            context.execute_migration(migration).await?;
+        }
+        
+        // Set up default configuration
+        context.set_module_config("default_portal_theme", "professional").await?;
+        context.set_module_config("auto_create_portal", "true").await?;
+        
+        Ok(())
+    }
+
+    async fn activate(&self, context: &ModuleContext) -> Result<(), ModuleError> {
         // Register client management UI components
         context.register_ui_component("client-dashboard", ClientDashboard).await?;
         context.register_ui_component("client-list", ClientListView).await?;
         context.register_ui_component("client-portal-builder", ClientPortalBuilder).await?;
+        context.register_ui_component("client-project-tracker", ClientProjectTracker).await?;
         
         // Register API endpoints
         context.register_endpoint("/api/clients", self.client_endpoints()).await?;
         context.register_endpoint("/api/client-portal", self.portal_endpoints()).await?;
         context.register_endpoint("/api/client-projects", self.project_endpoints()).await?;
+        context.register_endpoint("/api/client-communications", self.communication_endpoints()).await?;
         
-        // Register workflows
-        context.register_workflow("client_onboarding", self.client_onboarding_workflow()).await?;
-        context.register_workflow("client_portal_setup", self.portal_setup_workflow()).await?;
+        // Register Temporal workflows
+        context.register_workflow("client_onboarding_workflow", self.client_onboarding_workflow()).await?;
+        context.register_workflow("client_portal_setup_workflow", self.portal_setup_workflow()).await?;
+        context.register_workflow("client_project_lifecycle_workflow", self.project_lifecycle_workflow()).await?;
         
-        // Hook into file system for client access
+        // Register event handlers
+        context.add_event_handler("file_shared", |event| {
+            self.handle_file_shared_with_client(event).await
+        }).await?;
+        
+        context.add_event_handler("user_login", |event| {
+            self.handle_client_portal_login(event).await
+        }).await?;
+        
+        // Register filters for extending core functionality
         context.add_filter("file_permissions", |permissions| {
             self.add_client_file_permissions(permissions).await
         }).await?;
         
-        // Hook into user notifications for client activities
-        context.add_action("client_portal_login", |client_data| {
-            self.notify_team_of_client_activity(client_data).await
+        context.add_filter("dashboard_widgets", |widgets| {
+            self.add_client_dashboard_widgets(widgets).await
         }).await?;
         
         Ok(())
@@ -484,14 +742,51 @@ impl AdxPlugin for ClientManagementPlugin {
             Migration {
                 version: "001_create_clients_table".to_string(),
                 sql: include_str!("../migrations/001_create_clients_table.sql").to_string(),
+                rollback_sql: Some(include_str!("../migrations/001_rollback_clients_table.sql").to_string()),
             },
             Migration {
                 version: "002_create_client_projects_table".to_string(),
                 sql: include_str!("../migrations/002_create_client_projects_table.sql").to_string(),
+                rollback_sql: Some(include_str!("../migrations/002_rollback_client_projects_table.sql").to_string()),
             },
             Migration {
                 version: "003_create_client_file_access_table".to_string(),
                 sql: include_str!("../migrations/003_create_client_file_access_table.sql").to_string(),
+                rollback_sql: Some(include_str!("../migrations/003_rollback_client_file_access_table.sql").to_string()),
+            },
+            Migration {
+                version: "004_create_client_communications_table".to_string(),
+                sql: include_str!("../migrations/004_create_client_communications_table.sql").to_string(),
+                rollback_sql: Some(include_str!("../migrations/004_rollback_client_communications_table.sql").to_string()),
+            },
+        ]
+    }
+
+    fn register_settings(&self) -> Vec<ModuleSetting> {
+        vec![
+            ModuleSetting {
+                key: "default_portal_theme".to_string(),
+                name: "Default Portal Theme".to_string(),
+                description: "Default theme for client portals".to_string(),
+                setting_type: SettingType::Select(vec!["professional".to_string(), "modern".to_string(), "minimal".to_string()]),
+                default_value: "professional".to_string(),
+                required: true,
+            },
+            ModuleSetting {
+                key: "auto_create_portal".to_string(),
+                name: "Auto-Create Client Portals".to_string(),
+                description: "Automatically create portal access when adding new clients".to_string(),
+                setting_type: SettingType::Boolean,
+                default_value: "true".to_string(),
+                required: false,
+            },
+            ModuleSetting {
+                key: "portal_session_timeout".to_string(),
+                name: "Portal Session Timeout (minutes)".to_string(),
+                description: "How long client portal sessions remain active".to_string(),
+                setting_type: SettingType::Number { min: 15, max: 1440 },
+                default_value: "480".to_string(),
+                required: false,
             },
         ]
     }

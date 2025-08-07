@@ -99,6 +99,7 @@ tokio = "1.0"               # Async runtime for workflows
 - File Service: http://localhost:8083 (Activities + Direct endpoints + Workflow worker)
 - Workflow Service: http://localhost:8084 (Cross-service workflow orchestration)
 - Tenant Service: http://localhost:8085 (Activities + Direct endpoints + Workflow worker)
+- Module Service: http://localhost:8086 (Module management + Sandbox + Marketplace)
 
 #### Temporal Infrastructure
 - Temporal Server: http://localhost:7233
@@ -112,6 +113,7 @@ tokio = "1.0"               # Async runtime for workflows
 - File Micro-App: http://localhost:3003
 - User Micro-App: http://localhost:3004
 - Workflow Micro-App: http://localhost:3005
+- Module Micro-App: http://localhost:3006
 
 #### BFF Services (Optional Optimization Layer)
 - Auth BFF: http://localhost:4001 (Temporal workflow client + caching)
@@ -119,6 +121,7 @@ tokio = "1.0"               # Async runtime for workflows
 - File BFF: http://localhost:4003 (Temporal workflow client + caching)
 - User BFF: http://localhost:4004 (Temporal workflow client + caching)
 - Workflow BFF: http://localhost:4005 (Temporal workflow client + caching)
+- Module BFF: http://localhost:4006 (Temporal workflow client + caching)
 
 #### Legacy Frontend (Deprecated)
 - Monolithic Frontend: http://localhost:1420 (Vite dev server)

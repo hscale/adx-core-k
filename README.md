@@ -1,208 +1,267 @@
-# ADX CORE - AI-Powered Performance Excellence Platform
+# ADX CORE
 
-A comprehensive multi-tenant SaaS platform ecosystem featuring AI-powered workflow automation, advanced file processing, and performance analytics.
+A modern, scalable platform built with a **Temporal-first architecture** that prioritizes reliability, observability, and maintainability for complex business operations.
 
-## 🏗 Project Structure
+## 🏗️ Architecture Overview
 
-```
-adx-core/
-├── adx-core/              # Core platform services
-│   ├── services/          # Microservices
-│   │   ├── api-gateway/   # API Gateway service
-│   │   ├── auth-service/  # Authentication service
-│   │   ├── user-service/  # User management service
-│   │   └── shared/        # Shared libraries
-│   ├── infrastructure/    # Infrastructure as code
-│   ├── scripts/          # Development scripts
-│   └── tests/           # Integration tests
-├── scripts/              # Root-level scripts
-└── .kiro/               # Kiro IDE configuration
-    └── specs/           # Development specifications
-```
+ADX CORE follows a **Temporal-first** approach where Temporal workflows are the PRIMARY mechanism for implementing all multi-step business operations. This provides:
+
+- **Reliability**: Automatic retry, timeout, and error handling for distributed operations
+- **Observability**: Complete visibility into business process execution through Temporal UI
+- **Maintainability**: Clear separation between business logic (workflows) and infrastructure concerns
+- **Scalability**: Horizontal scaling of workflow workers independent of HTTP services
+
+### Core Architecture Patterns
+
+- **Workflow-Driven Microservices**: Services provide both direct endpoints (simple operations) and Temporal activities (complex workflows)
+- **Frontend Microservices**: Domain-aligned micro-frontends with Module Federation
+- **Multi-tenant**: Tenant isolation at database, application, and workflow levels
+- **BFF Pattern (Optional)**: Backend for Frontend services act as Temporal clients for data aggregation and caching
+
+## 🛠️ Technology Stack
+
+### Backend (Temporal-First)
+- **Language**: Rust 1.88+ with async/await
+- **Framework**: Axum for HTTP services
+- **Workflow Engine**: Temporal.io for ALL multi-step operations
+- **Database**: PostgreSQL (primary) + Redis (caching/sessions)
+- **Authentication**: JWT tokens with bcrypt password hashing
+
+### Frontend (Micro-Frontend Architecture)
+- **Shell Application**: React 18+ with TypeScript, Vite Module Federation
+- **Micro-Frontends**: Domain-specific apps (Auth, Tenant, File, User, Workflow)
+- **Cross-Platform**: Tauri 2.0 for native desktop and mobile
+- **Styling**: TailwindCSS with shared design system
+- **State Management**: Zustand, React Query (@tanstack/react-query)
 
 ## 🚀 Quick Start
 
-```bash
-# Start development environment (from root)
-./scripts/dev-start.sh
-
-# Or start from adx-core directly
-cd adx-core
-./scripts/dev-start.sh
-```
-
-## 🎯 Development Teams & Focus Areas
-
-### ADX CORE (adx-core/)
-**Mission**: Multi-tenant SaaS platform foundation
-- **Team 1**: Platform Foundation (Database, Temporal, API Gateway)
-- **Team 2**: Identity & Security (Auth, Authorization, User Management)
-- **Team 8**: Operations (DevOps, Monitoring, Infrastructure)
-
-### Future Modules
-- **AI Engine**: Machine learning and AI processing
-- **Analytics Platform**: Performance metrics and insights
-- **Integration Hub**: Third-party service integrations
-
-## 📊 Service Endpoints
-
-### ADX Core Services
-- **API Gateway**: http://localhost:8080
-- **Auth Service**: http://localhost:8081
-- **User Service**: http://localhost:8082
-- **Temporal UI**: http://localhost:8088
-- **Database**: postgresql://adx_user:dev_password@localhost:5432/adx_core
-- **Redis**: redis://localhost:6379
-
-## 🧪 Test the System
-
-### Health Check
-```bash
-curl http://localhost:8080/health
-# Expected: "OK"
-```
-
-### Authentication Test
-```bash
-# Login with demo user
-curl -X POST http://localhost:8081/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "email": "admin@example.com",
-    "password": "password", 
-    "tenant_id": "550e8400-e29b-41d4-a716-446655440000"
-  }'
-```
-
-### User Management Test
-```bash
-# List users through API Gateway
-curl http://localhost:8080/api/v1/users
-
-# Create a new user
-curl -X POST http://localhost:8080/api/v1/users \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "email": "newuser@example.com",
-    "password": "password123"
-  }'
-```
-
-## 🛠 Development Setup
-
 ### Prerequisites
-- Rust 1.88+ (latest stable)
+- Rust 1.88+
 - Node.js 18+
 - Docker & Docker Compose
 - PostgreSQL 14+
 - Redis 6+
-- Temporal Server
 
-### Manual Setup (ADX Core)
+### Development Setup
+
+1. **Clone and setup the project**:
 ```bash
+git clone <repository-url>
 cd adx-core
+```
 
-# Install dependencies
+2. **Start the entire development environment**:
+```bash
+./scripts/dev-start.sh
+```
+
+3. **Or start infrastructure only**:
+```bash
+docker compose -f infrastructure/docker/docker-compose.dev.yml up -d
+```
+
+### Service Architecture
+
+#### Backend Services (Temporal-Enabled)
+Each service runs in dual-mode: HTTP server + Temporal worker
+
+```bash
+# HTTP server mode (direct endpoints)
+cargo run --bin auth-service
+
+# Workflow worker mode (Temporal activities)
+cargo run --bin auth-service -- --mode worker
+```
+
+#### Service Ports
+
+**Backend Services**:
+- API Gateway: http://localhost:8080
+- Auth Service: http://localhost:8081
+- User Service: http://localhost:8082
+- File Service: http://localhost:8083
+- Workflow Service: http://localhost:8084
+- Tenant Service: http://localhost:8085
+- Module Service: http://localhost:8086
+
+**Temporal Infrastructure**:
+- Temporal Server: http://localhost:7233
+- Temporal UI: http://localhost:8088
+
+**Frontend Micro-Services**:
+- Shell Application: http://localhost:3000
+- Auth Micro-App: http://localhost:3001
+- Tenant Micro-App: http://localhost:3002
+- File Micro-App: http://localhost:3003
+- User Micro-App: http://localhost:3004
+- Workflow Micro-App: http://localhost:3005
+
+## 🔄 Workflow-First Development
+
+### When to Use Workflows vs Direct Endpoints
+
+**Use Temporal Workflows for**:
+- Operations involving multiple microservices
+- Long-running operations (>5 seconds expected duration)
+- Operations requiring rollback/compensation logic
+- Complex business processes with multiple steps
+- Operations that need progress tracking
+
+**Use Direct Endpoints for**:
+- Single-service CRUD operations
+- Simple data retrieval
+- Operations that complete in <1 second
+- Health checks and status endpoints
+
+### Example Workflow Implementation
+
+```rust
+#[workflow]
+pub async fn business_process_workflow(
+    request: BusinessProcessRequest,
+    context: WorkflowContext,
+) -> Result<BusinessProcessResult, WorkflowError> {
+    // Step 1: Validate preconditions
+    let validation = call_activity(
+        ServiceActivities::validate_request,
+        ValidationRequest {
+            request: request.clone(),
+            user_context: context.user_context.clone(),
+            tenant_context: context.tenant_context.clone(),
+        },
+    ).await?;
+    
+    // Step 2: Execute main business logic with compensation tracking
+    let entity = call_activity(
+        ServiceActivities::create_entity,
+        CreateEntityRequest::from(request.clone()),
+    ).await?;
+    
+    // Step 3: Execute dependent operations
+    let related_data = call_activity(
+        RelatedServiceActivities::create_related_data,
+        CreateRelatedDataRequest {
+            entity_id: entity.id.clone(),
+            data: request.related_data,
+        },
+    ).await?;
+    
+    Ok(BusinessProcessResult {
+        entity_id: entity.id,
+        related_data_id: related_data.id,
+        completed_at: Utc::now(),
+    })
+}
+```
+
+## 🧪 Development Commands
+
+### Backend Development
+```bash
+# Build all services
 cargo build --workspace
 
-# Start infrastructure
-docker compose -f infrastructure/docker/docker-compose.dev.yml up -d
+# Run tests
+cargo test --workspace
+cargo test --test workflow_tests
+cargo test --test integration_workflows
 
-# Run services
-cargo run --bin api-gateway
-cargo run --bin auth-service
-cargo run --bin user-service
+# Test specific workflows
+cargo test tenant_switch_workflow
+cargo test file_upload_workflow
+
+# Code quality
+cargo clippy --workspace
+cargo fmt --all
 ```
 
-## 📋 Development Specifications
-
-Detailed development guides and specifications are available in `.kiro/specs/`:
-
-- **[Immediate Start Guide](.kiro/specs/adx-core/development-kickoff/immediate-start-guide.md)** - Get started immediately
-- **[Environment Setup](.kiro/specs/adx-core/development-kickoff/development-environment-setup.md)** - Complete setup guide
-- **[Team 1 Tasks](.kiro/specs/adx-core/development-kickoff/team-1-foundation-tasks.md)** - Platform foundation tasks
-
-## 🧪 Testing
-
+### Frontend Development
 ```bash
-# Test all workspaces
-cargo test --workspace
+# Start all micro-frontends
+npm run dev:all
 
-# Test specific module
-cd adx-core
-cargo test --workspace
+# Start individual micro-frontends
+npm run dev:shell        # Shell application
+npm run dev:auth         # Auth micro-frontend
+npm run dev:tenant       # Tenant micro-frontend
 
-# Integration tests
-cargo test --test integration
+# Building
+npm run build:all        # All micro-frontends
+npm run build:web        # Web builds
+npm run build:desktop    # Desktop builds
+npm run build:mobile     # Mobile builds
+
+# Testing
+npm run test:unit        # Unit tests
+npm run test:integration # Integration tests
+npm run test:e2e         # End-to-end tests
 ```
 
-## 🎯 Team Progress
+## 📊 Monitoring & Observability
 
-### Team 1: Platform Foundation ✅ **COMPLETE**
-- [x] Database infrastructure with multi-tenant schema
-- [x] API Gateway with request proxying
-- [x] Event bus foundation
-- [x] Development environment setup
-- [x] Observability framework
-- [x] Temporal workflow integration
+### Temporal UI
+Access the Temporal UI at http://localhost:8088 to monitor:
+- Workflow executions and their status
+- Activity retries and failures
+- Workflow history and timeline
+- Performance metrics
 
-### Team 2: Identity & Security ✅ **COMPLETE**
-- [x] JWT token service
-- [x] Authentication endpoints with validation
-- [x] Password hashing with bcrypt
-- [x] API Gateway integration
-- [x] Authorization service foundation
+### Metrics & Logging
+- **Structured Logging**: serde_json with workflow context
+- **Metrics**: Prometheus metrics for workflows and activities
+- **Tracing**: OpenTelemetry for distributed tracing
+- **Workflow Metrics**: Built-in Temporal metrics and custom business metrics
 
-### Team 8: Operations ✅ **COMPLETE**
-- [x] Docker development environment
-- [x] Database setup with migrations
-- [x] Multi-service orchestration
-- [x] Temporal server integration
-- [x] Infrastructure monitoring
+## 🏢 Multi-Tenant Architecture
 
-## 🔧 Configuration
+ADX CORE provides complete tenant isolation at multiple levels:
+- **Database Level**: Tenant-scoped data access
+- **Application Level**: Tenant context propagation through workflows
+- **Workflow Level**: Tenant-aware workflow execution
+- **Frontend Level**: Tenant-specific UI and data
 
-Environment variables are loaded from `.env` files:
-- `.env.development` - Development settings
-- `.env.production` - Production settings
+## 🔧 Service Development Pattern
+
+Each service implements a dual-mode pattern:
+
+```rust
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
+    let mode = args.get(1).map(|s| s.as_str()).unwrap_or("server");
+    
+    match mode {
+        "server" => start_http_server().await,
+        "worker" => start_workflow_worker().await,
+        _ => {
+            eprintln!("Usage: {} [server|worker]", args[0]);
+            std::process::exit(1);
+        }
+    }
+}
+```
 
 ## 📚 Documentation
 
-- [Quick Start Guide](QUICK_START.md)
-- [Development Specifications](.kiro/specs/)
-- [Architecture Overview](docs/architecture.md)
+- [Architecture Decision Records](./docs/adr/)
+- [API Documentation](./docs/api/)
+- [Workflow Patterns](./docs/workflows/)
+- [Frontend Architecture](./docs/frontend/)
+- [Deployment Guide](./docs/deployment/)
 
 ## 🤝 Contributing
 
-1. Choose your team focus area (ADX Core, AI Engine, etc.)
-2. Review the relevant specifications in `.kiro/specs/`
-3. Follow the development setup for your module
-4. Create feature branches and submit pull requests
-
-### Development Workflow
-1. **Start environment**: `./scripts/dev-start.sh`
-2. **Make changes** to service code
-3. **Test locally** with curl commands
-4. **Build and verify**: `cargo build --workspace`
-5. **Commit changes** with descriptive messages
-
-## 📞 Support
-
-### Team Channels
-- **#team-1-foundation** - Database, API Gateway, Infrastructure
-- **#team-2-security** - Authentication, Authorization, Security
-- **#team-8-operations** - DevOps, Monitoring, Deployment
-
-### Emergency
-- **Blockers**: #blockers channel (monitored 24/7)
-- **Infrastructure Issues**: @devops-lead
-- **Architecture Questions**: @system-architect
+1. Follow the Temporal-first architecture principles
+2. Implement complex operations as workflows
+3. Maintain dual-mode service pattern
+4. Write comprehensive workflow tests
+5. Update documentation for new workflows
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+[License information]
 
 ---
 
-**Ready to build the future of performance excellence?** 🚀
-Start with the [Immediate Start Guide](.kiro/specs/adx-core/development-kickoff/immediate-start-guide.md)!
+Built with ❤️ using Temporal.io, Rust, and React
