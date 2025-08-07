@@ -7,7 +7,9 @@
 - **Architecture Pattern**: Workflow-driven microservices where complex operations are implemented as Temporal workflows
 - **Service Pattern**: Dual-mode services providing both direct endpoints (simple operations) and Temporal activities (complex workflows)
 - **Database**: PostgreSQL (primary) + Redis (caching/sessions) with database abstraction via Rust traits
-- **Authentication**: JWT tokens with bcrypt password hashing, propagated through workflow contexts
+- **Authentication**: JWT tokens with bcrypt password hashing, SSO (SAML, OAuth), Active Directory, MFA support
+- **Multi-Tenancy**: Complete isolation at database, application, and workflow levels with tenant-aware contexts
+- **Module System**: Hot-loadable modules with sandboxing, marketplace integration, and Temporal workflow support
 - **Observability**: Structured logging (serde_json), OpenTelemetry tracing, Prometheus metrics, Temporal UI for workflow monitoring
 
 ## Frontend Architecture
@@ -29,7 +31,7 @@
 ```toml
 tokio = "1.0"           # Async runtime
 axum = "0.7"            # Web framework
-sqlx = "0.8"            # Database toolkit
+sqlx = "0.8"            # Database toolkit with multi-tenant support
 serde = "1.0"           # Serialization
 uuid = "1.0"            # UUID generation
 chrono = "0.4"          # Date/time handling
@@ -38,6 +40,15 @@ bcrypt = "0.15"         # Password hashing
 redis = "0.24"          # Redis client
 prometheus = "0.13"     # Metrics
 tracing = "0.1"         # Logging/tracing
+temporal-sdk = "0.1"    # Temporal Rust SDK
+temporal-sdk-core = "0.1" # Core Temporal functionality
+reqwest = "0.11"        # HTTP client for external services
+tower = "0.4"           # Service abstractions
+tower-http = "0.4"      # HTTP middleware
+anyhow = "1.0"          # Error handling
+thiserror = "1.0"       # Error derive macros
+config = "0.13"         # Configuration management
+clap = "4.0"            # CLI argument parsing
 ```
 
 ### Frontend (Shell + Micro-Frontends)
@@ -52,7 +63,14 @@ tracing = "0.1"         # Logging/tracing
 "react-router-dom": "^6.20.1"
 "react-i18next": "^13.5.0"
 "zustand": "^4.4.7"
+"@headlessui/react": "^1.7.17"
+"framer-motion": "^10.16.4"
+"lucide-react": "^0.292.0"
 "@adx-core/design-system": "workspace:*"
+"@adx-core/shared-context": "workspace:*"
+"@adx-core/event-bus": "workspace:*"
+"@adx-core/bff-client": "workspace:*"
+"@adx-core/native-integration": "workspace:*"
 ```
 
 ### BFF Services (Optional Optimization Layer)
@@ -93,13 +111,14 @@ tokio = "1.0"               # Async runtime for workflows
 ### Service Ports
 
 #### Backend Services (Temporal-Enabled)
-- API Gateway: http://localhost:8080 (Workflow endpoints + Direct endpoints)
-- Auth Service: http://localhost:8081 (Activities + Direct endpoints + Workflow worker)
-- User Service: http://localhost:8082 (Activities + Direct endpoints + Workflow worker)
-- File Service: http://localhost:8083 (Activities + Direct endpoints + Workflow worker)
-- Workflow Service: http://localhost:8084 (Cross-service workflow orchestration)
-- Tenant Service: http://localhost:8085 (Activities + Direct endpoints + Workflow worker)
-- Module Service: http://localhost:8086 (Module management + Sandbox + Marketplace)
+- API Gateway: http://localhost:8080 (Workflow endpoints + Direct endpoints + Rate limiting)
+- Auth Service: http://localhost:8081 (Activities + Direct endpoints + Workflow worker + SSO/MFA)
+- User Service: http://localhost:8082 (Activities + Direct endpoints + Workflow worker + Multi-tenant)
+- File Service: http://localhost:8083 (Activities + Direct endpoints + Workflow worker + Storage backends)
+- Workflow Service: http://localhost:8084 (Cross-service workflow orchestration + AI integration)
+- Tenant Service: http://localhost:8085 (Activities + Direct endpoints + Workflow worker + Isolation)
+- Module Service: http://localhost:8086 (Module management + Sandbox + Marketplace + Hot-loading)
+- License Service: http://localhost:8087 (License validation + Quota enforcement + Billing)
 
 #### Temporal Infrastructure
 - Temporal Server: http://localhost:7233
