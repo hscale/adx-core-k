@@ -1,0 +1,10 @@
+{
+    "enabled": true,
+    "repository": "hscale/adx-core-k",
+    "labelPrefix": "kiro:",
+    "syncOnSave": true,
+    "apiUrl": "https://api.github.com",
+    "maxRetries": 3,
+    "retryDelay": 1000,
+    "rateLimitBuffer": 100
+}

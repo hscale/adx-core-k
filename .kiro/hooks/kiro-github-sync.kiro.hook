@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Kiro GitHub Sync",
+  "description": "Automatically syncs Kiro tasks to GitHub issues when tasks are created or updated, providing managers with visibility into task progress through GitHub's issue tracking system",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      ".kiro/**/*.md",
+      ".kiro/**/*.json",
+      ".kiro/**/*.yaml",
+      ".kiro/**/*.yml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A Kiro task file has been modified. Please analyze the changes and sync the corresponding GitHub issue. If this is a new task, create a new GitHub issue. If it's an update to an existing task, update the corresponding GitHub issue with the latest information. Include task details like title, description, status, assignee, and any relevant metadata. Ensure the GitHub issue is properly labeled and assigned to help managers track progress."
+  }
+}

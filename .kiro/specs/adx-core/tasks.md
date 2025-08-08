@@ -10,7 +10,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 1: Project Foundation and Infrastructure (Weeks 1-2)
 
-- [ ] 1. Project Structure and Workspace Setup
+- [-] 1. Project Structure and Workspace Setup
   - Create root `adx-core/` directory with Rust workspace structure
   - Initialize workspace `Cargo.toml` with microservices members (auth-service, user-service, file-service, tenant-service, workflow-service)
   - Create `services/shared/` crate for common utilities, types, and Temporal abstractions

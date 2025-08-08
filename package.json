@@ -1,0 +1,45 @@
+{
+  "name": "kiro-github-task-sync",
+  "version": "1.0.0",
+  "description": "Simple one-way sync from Kiro tasks to GitHub issues",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "kiro",
+    "github",
+    "task-sync",
+    "typescript"
+  ],
+  "author": "Kiro Team",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "chokidar": "^3.5.3",
+    "commander": "^11.1.0",
+    "dotenv": "^16.3.1",
+    "gray-matter": "^4.0.3",
+    "marked": "^9.1.6",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^8.54.0",
+    "tsx": "^4.6.0",
+    "typescript": "^5.3.2",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
