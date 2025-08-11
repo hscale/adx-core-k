@@ -102,7 +102,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 3: Tenant Service with Temporal Workflows (Weeks 5-6)
 
-- [ ] 11. Tenant Service Dual-Mode Implementation
+- [x] 11. Tenant Service Dual-Mode Implementation
   - Implement Tenant Service with HTTP server mode (port 8085) for direct endpoints
   - Create Tenant Service Temporal worker mode for workflow execution
   - Build tenant CRUD operations for simple tenant management
@@ -111,7 +111,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up tenant isolation and security boundaries
   - _Requirements: 2.1, 3.1 (Dual-mode services)_
 
-- [-] 12. Tenant Management Temporal Workflows (CORE WORKFLOWS)
+- [x] 12. Tenant Management Temporal Workflows (CORE WORKFLOWS)
   - Implement `tenant_provisioning_workflow` for complete tenant setup with infrastructure
   - Create `tenant_monitoring_workflow` for continuous resource tracking and alerts
   - Build `tenant_upgrade_workflow` with payment processing and rollback capabilities

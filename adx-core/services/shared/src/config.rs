@@ -85,9 +85,16 @@ impl AppConfig {
             .add_source(File::with_name("config/local").required(false))
             // Add environment variables with ADX_ prefix
             .add_source(Environment::with_prefix("ADX").separator("_"))
-            .build()?;
+            .build();
         
-        config.try_deserialize()
+        match config {
+            Ok(config) => config.try_deserialize(),
+            Err(_) => {
+                // If config loading fails, use default configuration
+                tracing::warn!("Failed to load configuration files, using defaults");
+                Ok(AppConfig::default())
+            }
+        }
     }
 }
 

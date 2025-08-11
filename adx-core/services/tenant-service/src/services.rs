@@ -3,7 +3,7 @@ use anyhow::{Result, anyhow};
 use chrono::Utc;
 
 use crate::models::*;
-use crate::repositories::{TenantRepository, TenantMembershipRepository};
+use crate::repository_traits::{TenantRepository, TenantMembershipRepository};
 use adx_shared::types::{TenantId, UserId};
 
 pub struct TenantService {

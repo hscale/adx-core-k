@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 use chrono::Utc;
 use uuid::Uuid;
 use anyhow::Result;

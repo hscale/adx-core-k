@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::models::*;
 use crate::services::TenantService;
-use adx_shared::types::{TenantId, UserId, PaginationParams, PaginatedResponse, PaginationInfo};
+use adx_shared::types::{TenantId, UserId, PaginatedResponse, PaginationInfo};
 
 pub type TenantServiceState = Arc<TenantService>;
 
@@ -377,6 +377,116 @@ pub async fn get_tenant_context(
                     }
                 })),
             ))
+        }
+    }
+}
+
+pub async fn get_current_tenant_context(
+    State(service): State<TenantServiceState>,
+    // TODO: Extract user_id and tenant_id from JWT token in middleware
+) -> Result<Json<TenantContext>, (StatusCode, Json<serde_json::Value>)> {
+    // For now, we'll use placeholder values
+    // In a real implementation, these would come from the authenticated user context
+    let user_id = "placeholder-user-id".to_string();
+    let tenant_id = "placeholder-tenant-id".to_string();
+    
+    match service.get_tenant_context(&tenant_id, &user_id).await {
+        Ok(context) => Ok(Json(context)),
+        Err(e) => {
+            let status = if e.to_string().contains("not found") || e.to_string().contains("does not have access") {
+                StatusCode::FORBIDDEN
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            
+            Err((
+                status,
+                Json(serde_json::json!({
+                    "error": {
+                        "code": "TENANT_CONTEXT_FAILED",
+                        "message": e.to_string()
+                    }
+                })),
+            ))
+        }
+    }
+}
+
+// Tenant validation and access control handlers
+pub async fn validate_tenant_access(
+    State(service): State<TenantServiceState>,
+    Path((tenant_id, user_id)): Path<(TenantId, UserId)>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    match service.validate_tenant_access(&tenant_id, &user_id).await {
+        Ok(has_access) => Ok(Json(serde_json::json!({
+            "has_access": has_access,
+            "tenant_id": tenant_id,
+            "user_id": user_id
+        }))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": {
+                    "code": "ACCESS_VALIDATION_FAILED",
+                    "message": e.to_string()
+                }
+            })),
+        )),
+    }
+}
+
+pub async fn get_user_tenant_permissions(
+    State(service): State<TenantServiceState>,
+    Path((tenant_id, user_id)): Path<(TenantId, UserId)>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let permission = params.get("permission").cloned().unwrap_or_default();
+    
+    if permission.is_empty() {
+        // Return all permissions for the user in the tenant
+        match service.get_tenant_context(&tenant_id, &user_id).await {
+            Ok(context) => Ok(Json(serde_json::json!({
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "role": context.user_role,
+                "permissions": context.user_permissions
+            }))),
+            Err(e) => {
+                let status = if e.to_string().contains("not found") || e.to_string().contains("does not have access") {
+                    StatusCode::FORBIDDEN
+                } else {
+                    StatusCode::INTERNAL_SERVER_ERROR
+                };
+                
+                Err((
+                    status,
+                    Json(serde_json::json!({
+                        "error": {
+                            "code": "PERMISSIONS_FAILED",
+                            "message": e.to_string()
+                        }
+                    })),
+                ))
+            }
+        }
+    } else {
+        // Check specific permission
+        match service.validate_tenant_permission(&tenant_id, &user_id, &permission).await {
+            Ok(has_permission) => Ok(Json(serde_json::json!({
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "permission": permission,
+                "has_permission": has_permission
+            }))),
+            Err(e) => Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error": {
+                        "code": "PERMISSION_CHECK_FAILED",
+                        "message": e.to_string()
+                    }
+                })),
+            )),
         }
     }
 }

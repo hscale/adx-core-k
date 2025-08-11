@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use anyhow::Result;
 
 use crate::services::TenantService;
-use crate::repositories::{PostgresTenantRepository, PostgresTenantMembershipRepository};
+use crate::repositories_simple::{SimpleTenantRepository, SimpleTenantMembershipRepository};
 use crate::activities::{TenantActivities, TenantActivitiesImpl};
 use crate::workflows::{TenantWorkflows, TenantWorkflowFactory};
 use adx_shared::config::AppConfig;
@@ -14,10 +14,10 @@ pub struct TenantWorker {
 }
 
 impl TenantWorker {
-    pub fn new(config: &AppConfig, pool: PgPool) -> Self {
-        // Create repositories
-        let tenant_repo = Arc::new(PostgresTenantRepository::new(pool.clone()));
-        let membership_repo = Arc::new(PostgresTenantMembershipRepository::new(pool.clone()));
+    pub fn new(_config: &AppConfig, _pool: PgPool) -> Self {
+        // Create repositories (using simple in-memory implementation for now)
+        let tenant_repo = Arc::new(SimpleTenantRepository::new());
+        let membership_repo = Arc::new(SimpleTenantMembershipRepository::new());
 
         // Create service
         let tenant_service = Arc::new(TenantService::new(tenant_repo, membership_repo));

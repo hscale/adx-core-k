@@ -1,10 +1,9 @@
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::activities::{TenantActivities, TenantActivitiesImpl};
+use crate::activities::TenantActivities;
 use crate::models::*;
-use adx_shared::types::{TenantId, UserId};
+use adx_shared::types::TenantId;
 
 // Workflow error types
 #[derive(Debug, thiserror::Error)]
@@ -80,7 +79,7 @@ impl TenantWorkflows {
             })?;
 
         // Step 3: Create tenant configuration
-        let tenant_config = self.activities
+        let _tenant_config = self.activities
             .create_tenant_config(crate::activities::CreateTenantConfigRequest {
                 tenant_id: tenant_id.clone(),
                 tenant_name: request.tenant_name,

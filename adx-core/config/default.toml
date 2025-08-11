@@ -1,0 +1,43 @@
+[server]
+host = "0.0.0.0"
+port = 8085
+workers = 4
+max_connections = 1000
+timeout_seconds = 30
+
+[database]
+url = "postgresql://postgres:postgres@localhost:5432/adx_core"
+max_connections = 20
+min_connections = 5
+acquire_timeout_seconds = 30
+idle_timeout_seconds = 600
+max_lifetime_seconds = 1800
+
+[redis]
+url = "redis://localhost:6379"
+max_connections = 20
+connection_timeout_seconds = 5
+command_timeout_seconds = 5
+
+[temporal]
+server_url = "http://localhost:7233"
+namespace = "default"
+task_queue = "tenant-service-task-queue"
+worker_max_concurrent_activities = 100
+worker_max_concurrent_workflows = 50
+
+[auth]
+jwt_secret = "your-secret-key-change-in-production"
+jwt_expiration_hours = 24
+refresh_token_expiration_days = 30
+bcrypt_cost = 12
+
+[logging]
+level = "info"
+format = "json"
+
+[observability]
+tracing_enabled = true
+metrics_enabled = true
+jaeger_endpoint = "http://localhost:14268/api/traces"
+prometheus_endpoint = "http://localhost:9090"

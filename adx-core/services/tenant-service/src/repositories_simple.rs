@@ -6,37 +6,15 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crate::models::*;
+use crate::repository_traits::{TenantRepository, TenantMembershipRepository};
 use adx_shared::types::{TenantId, UserId};
 
-#[async_trait]
-pub trait TenantRepository: Send + Sync {
-    async fn create(&self, tenant: &Tenant) -> Result<Tenant>;
-    async fn find_by_id(&self, id: &TenantId) -> Result<Option<Tenant>>;
-    async fn find_by_slug(&self, slug: &str) -> Result<Option<Tenant>>;
-    async fn find_by_name(&self, name: &str) -> Result<Option<Tenant>>;
-    async fn list(&self, limit: Option<u32>, offset: Option<u32>) -> Result<Vec<Tenant>>;
-    async fn update(&self, tenant: &Tenant) -> Result<Tenant>;
-    async fn delete(&self, id: &TenantId) -> Result<()>;
-    async fn count(&self) -> Result<u64>;
-}
-
-#[async_trait]
-pub trait TenantMembershipRepository: Send + Sync {
-    async fn create(&self, membership: &TenantMembership) -> Result<TenantMembership>;
-    async fn find_by_id(&self, id: &str) -> Result<Option<TenantMembership>>;
-    async fn find_by_tenant_and_user(&self, tenant_id: &TenantId, user_id: &UserId) -> Result<Option<TenantMembership>>;
-    async fn list_by_tenant(&self, tenant_id: &TenantId) -> Result<Vec<TenantMembership>>;
-    async fn list_by_user(&self, user_id: &UserId) -> Result<Vec<TenantMembership>>;
-    async fn update(&self, membership: &TenantMembership) -> Result<TenantMembership>;
-    async fn delete(&self, id: &str) -> Result<()>;
-}
-
-// Mock implementations for development
-pub struct MockTenantRepository {
+// Simple in-memory implementation for development/testing
+pub struct SimpleTenantRepository {
     tenants: Arc<Mutex<HashMap<String, Tenant>>>,
 }
 
-impl MockTenantRepository {
+impl SimpleTenantRepository {
     pub fn new() -> Self {
         Self {
             tenants: Arc::new(Mutex::new(HashMap::new())),
@@ -56,7 +34,7 @@ impl MockTenantRepository {
 }
 
 #[async_trait]
-impl TenantRepository for MockTenantRepository {
+impl TenantRepository for SimpleTenantRepository {
     async fn create(&self, tenant: &Tenant) -> Result<Tenant> {
         let mut new_tenant = tenant.clone();
         if new_tenant.id.is_empty() {
@@ -91,13 +69,18 @@ impl TenantRepository for MockTenantRepository {
 
     async fn list(&self, limit: Option<u32>, offset: Option<u32>) -> Result<Vec<Tenant>> {
         let tenants = self.tenants.lock().unwrap();
-        let mut tenant_list: Vec<_> = tenants.values().cloned().collect();
+        let mut tenant_list: Vec<Tenant> = tenants.values().cloned().collect();
         tenant_list.sort_by(|a, b| b.created_at.cmp(&a.created_at));
 
         let offset = offset.unwrap_or(0) as usize;
         let limit = limit.unwrap_or(50) as usize;
 
-        Ok(tenant_list.into_iter().skip(offset).take(limit).collect())
+        if offset >= tenant_list.len() {
+            return Ok(vec![]);
+        }
+
+        let end = std::cmp::min(offset + limit, tenant_list.len());
+        Ok(tenant_list[offset..end].to_vec())
     }
 
     async fn update(&self, tenant: &Tenant) -> Result<Tenant> {
@@ -122,11 +105,11 @@ impl TenantRepository for MockTenantRepository {
     }
 }
 
-pub struct MockTenantMembershipRepository {
+pub struct SimpleTenantMembershipRepository {
     memberships: Arc<Mutex<HashMap<String, TenantMembership>>>,
 }
 
-impl MockTenantMembershipRepository {
+impl SimpleTenantMembershipRepository {
     pub fn new() -> Self {
         Self {
             memberships: Arc::new(Mutex::new(HashMap::new())),
@@ -135,7 +118,7 @@ impl MockTenantMembershipRepository {
 }
 
 #[async_trait]
-impl TenantMembershipRepository for MockTenantMembershipRepository {
+impl TenantMembershipRepository for SimpleTenantMembershipRepository {
     async fn create(&self, membership: &TenantMembership) -> Result<TenantMembership> {
         let mut new_membership = membership.clone();
         if new_membership.id.is_empty() {
@@ -164,7 +147,7 @@ impl TenantMembershipRepository for MockTenantMembershipRepository {
 
     async fn list_by_tenant(&self, tenant_id: &TenantId) -> Result<Vec<TenantMembership>> {
         let memberships = self.memberships.lock().unwrap();
-        let mut tenant_memberships: Vec<_> = memberships.values()
+        let mut tenant_memberships: Vec<TenantMembership> = memberships.values()
             .filter(|m| m.tenant_id == *tenant_id)
             .cloned()
             .collect();
@@ -174,7 +157,7 @@ impl TenantMembershipRepository for MockTenantMembershipRepository {
 
     async fn list_by_user(&self, user_id: &UserId) -> Result<Vec<TenantMembership>> {
         let memberships = self.memberships.lock().unwrap();
-        let mut user_memberships: Vec<_> = memberships.values()
+        let mut user_memberships: Vec<TenantMembership> = memberships.values()
             .filter(|m| m.user_id == *user_id)
             .cloned()
             .collect();
