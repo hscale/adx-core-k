@@ -10,5 +10,8 @@ pub mod workflows;
 pub mod server;
 pub mod worker;
 
+#[cfg(test)]
+mod activities_test;
+
 pub use models::*;
 pub use services::*;

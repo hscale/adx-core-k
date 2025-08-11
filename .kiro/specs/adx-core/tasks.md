@@ -120,7 +120,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add `tenant_switching_workflow` for complex multi-service tenant context changes
   - _Requirements: 2.1, 11.1 (Temporal-first hybrid AI workflow orchestration)_
 
-- [-] 13. Tenant Activities and RBAC (TEMPORAL ACTIVITIES)
+- [x] 13. Tenant Activities and RBAC (TEMPORAL ACTIVITIES)
   - Create `create_tenant_activity` with infrastructure provisioning
   - Implement `setup_tenant_permissions_activity` for role-based access control
   - Build `monitor_tenant_usage_activity` for quota and resource tracking

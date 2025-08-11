@@ -30,3 +30,4 @@ adx-shared = { path = "../shared" }
 # Service-specific dependencies
 async-trait = "0.1"
 regex = "1.0"
+rust_decimal = { version = "1.32", features = ["serde-float"] }
