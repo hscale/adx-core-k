@@ -1,0 +1,62 @@
+# Dockerfile for database migration runner
+FROM rust:1.75-slim as builder
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy Cargo files
+COPY Cargo.toml Cargo.lock ./
+COPY services/shared/Cargo.toml ./services/shared/
+
+# Create dummy source files to cache dependencies
+RUN mkdir -p services/shared/src/bin && \
+    echo "fn main() {}" > services/shared/src/bin/db-manager.rs && \
+    echo "fn main() {}" > services/shared/src/lib.rs
+
+# Build dependencies
+RUN cargo build --release --bin db-manager
+
+# Copy actual source code
+COPY services/shared/src ./services/shared/src
+COPY services/shared/migrations ./services/shared/migrations
+COPY services/shared/seeds ./services/shared/seeds
+
+# Build the actual binary
+RUN touch services/shared/src/lib.rs && \
+    touch services/shared/src/bin/db-manager.rs && \
+    cargo build --release --bin db-manager
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    libssl3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN useradd -r -s /bin/false -m -d /app app
+
+# Copy binary and migrations
+COPY --from=builder /app/target/release/db-manager /usr/local/bin/
+COPY --from=builder /app/services/shared/migrations /app/migrations
+COPY --from=builder /app/services/shared/seeds /app/seeds
+
+# Set ownership
+RUN chown -R app:app /app
+
+# Switch to app user
+USER app
+WORKDIR /app
+
+# Default command
+CMD ["db-manager", "setup"]

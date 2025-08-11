@@ -120,6 +120,7 @@ impl Default for UserPreferences {
     }
 }
 
+#[derive(Clone)]
 pub struct JwtManager {
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,

@@ -23,7 +23,13 @@ pub enum Error {
     Validation(String),
     
     #[error("Configuration error: {0}")]
-    Configuration(#[from] config::ConfigError),
+    Configuration(String),
+    
+    #[error("Config error: {0}")]
+    Config(#[from] config::ConfigError),
+    
+    #[error("Network error: {0}")]
+    Network(String),
     
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),

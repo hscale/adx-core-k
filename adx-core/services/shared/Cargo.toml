@@ -3,6 +3,10 @@ name = "adx-shared"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "db-manager"
+path = "src/bin/db-manager.rs"
+
 [dependencies]
 # Workspace dependencies
 tokio = { workspace = true }
@@ -15,11 +19,21 @@ redis = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-squads-temporal-sdk = { workspace = true }
-squads-temporal-sdk-core = { workspace = true }
+# Temporal SDK dependencies - gRPC-based implementation
+# temporal-sdk-core = { workspace = true }  # Will be enabled when stable
+tonic = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+# Additional dependencies for Temporal gRPC integration
+tonic-build = "0.11"
 config = { workspace = true }
 jsonwebtoken = { workspace = true }
 
 # Additional dependencies for shared utilities
 async-trait = "0.1"
 derive_more = "0.99"
+tracing-subscriber = { workspace = true }
+reqwest = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+bcrypt = "0.15"
+axum = { workspace = true }

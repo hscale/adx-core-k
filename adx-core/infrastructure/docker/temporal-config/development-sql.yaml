@@ -1,36 +1,89 @@
-# Temporal development configuration
+# Temporal dynamic configuration for development environment
+# This file configures Temporal server behavior and namespace settings
+
+# Frontend service configuration
+frontend.enableClientVersionCheck:
+  - value: true
+    constraints: {}
+
+# History service configuration
+history.enableAdxCoreWorkflows:
+  - value: true
+    constraints: {}
+
+# Matching service configuration
+matching.numTaskqueueReadPartitions:
+  - value: 4
+    constraints: {}
+
+matching.numTaskqueueWritePartitions:
+  - value: 4
+    constraints: {}
+
+# Worker service configuration
+worker.enableLogging:
+  - value: true
+    constraints: {}
+
+# Namespace configuration
+system.enableNamespaceNotActiveAutoForwarding:
+  - value: true
+    constraints: {}
+
+# Workflow execution limits
+limit.maxIDLength:
+  - value: 1000
+    constraints: {}
+
+limit.maxWorkflowTimeout:
+  - value: "8760h" # 1 year
+    constraints: {}
+
+limit.maxActivityTimeout:
+  - value: "24h"
+    constraints: {}
+
+# Retention settings
+system.defaultWorkflowRetentionTTL:
+  - value: "72h"
+    constraints: {}
+
+# ADX Core specific settings
+adxcore.enableMultiTenantWorkflows:
+  - value: true
+    constraints: {}
+
+adxcore.enableWorkflowVersioning:
+  - value: true
+    constraints: {}
+
+# Development environment settings
+system.enableDebugMode:
+  - value: true
+    constraints: {}
+
+# Metrics and monitoring
+system.enablePrometheusMetrics:
+  - value: true
+    constraints: {}
+
+# Search attributes for ADX Core workflows
 system.forceSearchAttributesCacheRefreshOnRead:
   - value: true
     constraints: {}
 
-system.enableCrossNamespaceCommands:
-  - value: true
-    constraints: {}
+# Namespace-specific configurations
+namespace.development.retention:
+  - value: "72h"
+    constraints:
+      namespace: "adx-core-development"
 
-system.enableReadFromClosedExecutionV2:
-  - value: true
-    constraints: {}
+namespace.staging.retention:
+  - value: "168h" # 7 days
+    constraints:
+      namespace: "adx-core-staging"
 
-frontend.enableUpdateWorkflowExecution:
-  - value: true
-    constraints: {}
-
-frontend.enableUpdateWorkflowExecutionAsyncAccepted:
-  - value: true
-    constraints: {}
-
-system.enableEagerWorkflowStart:
-  - value: true
-    constraints: {}
-
-worker.buildIdScavengerEnabled:
-  - value: true
-    constraints: {}
-
-system.enableActivityEagerExecution:
-  - value: true
-    constraints: {}
-
-system.enableWorkflowExecutionTimeoutTimer:
-  - value: true
-    constraints: {}
+namespace.production.retention:
+  - value: "8760h" # 1 year
+    constraints:
+      namespace: "adx-core-production"

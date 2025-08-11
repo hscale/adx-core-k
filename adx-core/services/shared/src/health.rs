@@ -1,10 +1,8 @@
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
-use crate::{Result, Error, types::{HealthStatus, HealthCheck}};
+use crate::{Result, types::{HealthStatus, HealthCheck}};
 
-#[derive(Debug, Clone)]
 pub struct HealthChecker {
     checks: HashMap<String, Box<dyn HealthCheckProvider + Send + Sync>>,
     version: String,
@@ -147,12 +145,12 @@ impl HealthCheckProvider for RedisHealthCheck {
 
 // Temporal health check
 pub struct TemporalHealthCheck {
-    client: crate::temporal::TemporalClient,
+    // client: crate::temporal::AdxTemporalClient,  // Commented out due to SDK compatibility
 }
 
 impl TemporalHealthCheck {
-    pub fn new(client: crate::temporal::TemporalClient) -> Self {
-        Self { client }
+    pub fn new(/* client: crate::temporal::AdxTemporalClient */) -> Self {
+        Self { /* client */ }
     }
 }
 
@@ -173,4 +171,13 @@ impl HealthCheckProvider for TemporalHealthCheck {
     fn name(&self) -> &str {
         "temporal"
     }
+}
+
+// Simple health check endpoint handler
+pub async fn health_check() -> axum::Json<serde_json::Value> {
+    axum::Json(serde_json::json!({
+        "status": "healthy",
+        "timestamp": Utc::now(),
+        "service": "tenant-service"
+    }))
 }

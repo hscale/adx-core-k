@@ -157,6 +157,73 @@ export class GitHubClient {
   }
 
   /**
+   * Reopen a GitHub issue
+   */
+  async reopenIssue(issueNumber: number): Promise<GitHubIssue> {
+    await this.checkRateLimit();
+    
+    try {
+      logger.debug('Reopening GitHub issue', { issueNumber });
+      
+      const response = await this.withRetry(async () => {
+        return await this.octokit.rest.issues.update({
+          owner: this.owner,
+          repo: this.repo,
+          issue_number: issueNumber,
+          state: 'open',
+        });
+      });
+
+      const issue = this.mapToGitHubIssue(response.data);
+      logger.info('Reopened GitHub issue', { 
+        number: issue.number, 
+        title: issue.title,
+        url: issue.html_url 
+      });
+      
+      return issue;
+    } catch (error) {
+      logger.error('Failed to reopen GitHub issue', { 
+        issueNumber, 
+        error: this.formatError(error) 
+      });
+      throw this.handleApiError(error, 'reopen issue');
+    }
+  }
+
+  /**
+   * Update labels on a GitHub issue
+   */
+  async updateIssueLabels(issueNumber: number, labels: string[]): Promise<void> {
+    await this.checkRateLimit();
+    
+    try {
+      logger.debug('Updating GitHub issue labels', { issueNumber, labels });
+      
+      await this.withRetry(async () => {
+        return await this.octokit.rest.issues.setLabels({
+          owner: this.owner,
+          repo: this.repo,
+          issue_number: issueNumber,
+          labels,
+        });
+      });
+
+      logger.info('Updated GitHub issue labels', { 
+        issueNumber, 
+        labels 
+      });
+    } catch (error) {
+      logger.error('Failed to update GitHub issue labels', { 
+        issueNumber, 
+        labels,
+        error: this.formatError(error) 
+      });
+      throw this.handleApiError(error, 'update issue labels');
+    }
+  }
+
+  /**
    * Find an issue by label (typically Kiro task ID)
    */
   async findIssueByLabel(label: string): Promise<GitHubIssue | null> {

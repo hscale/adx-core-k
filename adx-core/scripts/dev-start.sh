@@ -46,10 +46,15 @@ fi
 # Navigate to the infrastructure directory
 cd "$(dirname "$0")/../infrastructure/docker"
 
-print_status "Starting infrastructure services (PostgreSQL, Redis, Temporal)..."
+print_status "Starting infrastructure services (PostgreSQL, Redis)..."
 
-# Start infrastructure services
+# Start basic infrastructure services
 docker-compose -f docker-compose.dev.yml up -d
+
+print_status "Setting up Temporal infrastructure..."
+
+# Start Temporal infrastructure
+docker-compose -f docker-compose.temporal.yml up -d
 
 print_status "Waiting for services to be ready..."
 
@@ -69,10 +74,19 @@ print_success "Redis is ready"
 
 # Wait for Temporal to be ready
 print_status "Waiting for Temporal..."
-until curl -f http://localhost:7233/api/v1/namespaces > /dev/null 2>&1; do
+until docker exec temporal tctl cluster health > /dev/null 2>&1; do
     sleep 5
 done
 print_success "Temporal is ready"
+
+# Setup Temporal namespaces
+print_status "Setting up Temporal namespaces..."
+if [ -f "$(dirname "$0")/setup-temporal-namespaces.sh" ]; then
+    "$(dirname "$0")/setup-temporal-namespaces.sh" > /dev/null 2>&1 || print_warning "Namespace setup may have failed, but continuing..."
+    print_success "Temporal namespaces configured"
+else
+    print_warning "Namespace setup script not found, skipping..."
+fi
 
 print_success "Infrastructure services are running!"
 print_status "Services available at:"

@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for ADX Core
+  postgres:
+    image: postgres:15-alpine
+    container_name: adx-core-postgres
+    environment:
+      POSTGRES_DB: adx_core
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ../../services/shared/migrations:/docker-entrypoint-initdb.d/migrations:ro
+    networks:
+      - adx-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d adx_core"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: adx-core-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - adx-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # PostgreSQL test database
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: adx-core-postgres-test
+    environment:
+      POSTGRES_DB: adx_core_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - adx-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d adx_core_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    profiles:
+      - test
+
+  # pgAdmin for database management (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: adx-core-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@adxcore.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin-servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - adx-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - admin
+
+  # Database migration runner
+  db-migrator:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.db-migrator
+    container_name: adx-core-db-migrator
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/adx_core
+      ENVIRONMENT: development
+    networks:
+      - adx-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - migrate
+
+volumes:
+  postgres_data:
+    driver: local
+  postgres_test_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  adx-network:
+    driver: bridge
+    name: adx-core-network

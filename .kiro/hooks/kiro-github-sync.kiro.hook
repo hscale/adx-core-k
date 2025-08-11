@@ -1,19 +1,16 @@
 {
   "enabled": true,
-  "name": "Kiro GitHub Sync",
-  "description": "Automatically syncs Kiro tasks to GitHub issues when tasks are created or updated, providing managers with visibility into task progress through GitHub's issue tracking system",
-  "version": "1",
+  "name": "ADX Core GitHub Task Sync",
+  "description": "Automatically syncs ADX Core tasks to GitHub issues when the tasks.md file is modified. Provides comprehensive project management integration with intelligent task parsing, status tracking, and architectural component labeling for all 43 implementation tasks.",
+  "version": "2.0",
   "when": {
     "type": "fileEdited",
     "patterns": [
-      ".kiro/**/*.md",
-      ".kiro/**/*.json",
-      ".kiro/**/*.yaml",
-      ".kiro/**/*.yml"
+      ".kiro/specs/adx-core/tasks.md"
     ]
   },
   "then": {
     "type": "askAgent",
-    "prompt": "A Kiro task file has been modified. Please analyze the changes and sync the corresponding GitHub issue. If this is a new task, create a new GitHub issue. If it's an update to an existing task, update the corresponding GitHub issue with the latest information. Include task details like title, description, status, assignee, and any relevant metadata. Ensure the GitHub issue is properly labeled and assigned to help managers track progress."
+    "prompt": "The ADX Core tasks.md file has been modified. Please use the comprehensive GitHub sync system we created to analyze and sync the task changes:\n\n1. **Use the existing sync tools**: Leverage the `sync-adx-core-tasks.ts` script and related infrastructure we built\n2. **Analyze task changes**: Parse the updated tasks.md file to identify what changed (new tasks, status updates, description changes)\n3. **Sync to GitHub**: Update corresponding GitHub issues with:\n   - Task status changes (open/close issues based on completion)\n   - Updated descriptions and requirements\n   - Proper labeling (component, phase, status, requirements)\n   - Architectural alignment (Temporal-first, multi-tenant, microservices)\n\n4. **Provide manager summary**: Report what was synced, including:\n   - Number of tasks updated\n   - Status changes (completed → closed issues)\n   - New issues created\n   - Component and phase breakdown\n\n**Available Tools**:\n- `sync-adx-core-tasks.ts` - Comprehensive sync for all 43 tasks\n- `setup-github-sync.ts` - Configuration management\n- Enhanced GitHubClient with reopenIssue() and updateIssueLabels()\n- Dry-run mode for analysis: `--dry-run` flag\n\n**Architecture Context**: ADX Core uses Temporal-first microservices architecture with frontend microservices, multi-tenant isolation, and team autonomy. Ensure GitHub issues reflect this architectural understanding through proper component labeling and requirement mapping.\n\nReuse the existing tools and infrastructure - they are designed for exactly this purpose and provide comprehensive task analysis and GitHub integration. Reference tools/tech in KIRO_HOOK_DOCUMENTATION.md. THEN commit and push modify code to git"
   }
 }

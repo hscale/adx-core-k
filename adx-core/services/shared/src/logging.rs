@@ -1,4 +1,4 @@
-use tracing::{info, warn, error};
+use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 use tracing_subscriber::fmt::Layer as FmtLayer;
 use crate::{config::LoggingConfig, Result, Error};
@@ -7,19 +7,7 @@ pub fn init_logging(config: &LoggingConfig) -> Result<()> {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(&config.level));
 
-    let fmt_layer = match config.format.as_str() {
-        "json" => FmtLayer::new()
-            .json()
-            .with_current_span(true)
-            .with_span_list(true),
-        "pretty" => FmtLayer::new()
-            .pretty()
-            .with_current_span(true)
-            .with_span_list(true),
-        _ => FmtLayer::new()
-            .with_current_span(true)
-            .with_span_list(true),
-    };
+    let fmt_layer = FmtLayer::new();
 
     let registry = Registry::default()
         .with(env_filter)
@@ -35,9 +23,7 @@ pub fn init_logging(config: &LoggingConfig) -> Result<()> {
         
         let file_layer = FmtLayer::new()
             .json()
-            .with_writer(file)
-            .with_current_span(true)
-            .with_span_list(true);
+            .with_writer(file);
         
         registry.with(file_layer).init();
     } else {

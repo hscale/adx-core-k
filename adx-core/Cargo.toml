@@ -19,7 +19,7 @@ futures = "0.3"
 # Web framework and HTTP
 axum = { version = "0.7", features = ["macros", "multipart"] }
 tower = "0.4"
-tower-http = { version = "0.4", features = ["cors", "trace", "compression", "timeout"] }
+tower-http = { version = "0.4", features = ["cors", "trace", "compression-br", "compression-gzip", "timeout"] }
 hyper = "1.0"
 
 # Serialization and data handling
@@ -53,9 +53,11 @@ prometheus = "0.13"
 anyhow = "1.0"
 thiserror = "1.0"
 
-# Temporal workflow engine
-squads-temporal-sdk = "0.1.0-alpha.1"
-squads-temporal-sdk-core = "0.1.1"
+# Temporal workflow engine - SDK integration ready
+# temporal-sdk-core = "0.1.0-alpha.1"  # Commented out due to alpha compatibility issues
+tonic = "0.11"
+prost = "0.12"
+prost-types = "0.12"
 
 # HTTP client
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }

@@ -51,7 +51,7 @@ pub struct TemporalConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthConfig {
-    pub jwt_secret: String,
+    pub jwt_secret: Option<String>,
     pub jwt_expiration_hours: u64,
     pub refresh_token_expiration_days: u64,
     pub bcrypt_cost: u32,
@@ -123,7 +123,7 @@ impl Default for AppConfig {
                 worker_max_concurrent_workflows: 50,
             },
             auth: AuthConfig {
-                jwt_secret: "your-secret-key-change-in-production".to_string(),
+                jwt_secret: Some("your-secret-key-change-in-production".to_string()),
                 jwt_expiration_hours: 24,
                 refresh_token_expiration_days: 30,
                 bcrypt_cost: 12,

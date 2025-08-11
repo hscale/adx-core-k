@@ -10,7 +10,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 1: Project Foundation and Infrastructure (Weeks 1-2)
 
-- [-] 1. Project Structure and Workspace Setup
+- [x] 1. Project Structure and Workspace Setup
   - Create root `adx-core/` directory with Rust workspace structure
   - Initialize workspace `Cargo.toml` with microservices members (auth-service, user-service, file-service, tenant-service, workflow-service)
   - Create `services/shared/` crate for common utilities, types, and Temporal abstractions
@@ -19,7 +19,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Initialize Git repository with proper `.gitignore` for Rust and Node.js projects
   - _Requirements: 3.1 (Temporal-first backend microservices), 13.1 (Team autonomy and vertical ownership)_
 
-- [ ] 2. Temporal Infrastructure Setup
+- [x] 2. Temporal Infrastructure Setup
   - Create Docker Compose configuration for Temporal development cluster
   - Configure Temporal namespaces for development, staging, production environments
   - Set up Temporal Web UI access and monitoring configuration
@@ -28,7 +28,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up Temporal workflow versioning and migration strategy documentation
   - _Requirements: 3.1 (Temporal-first backend microservices), 11.1 (Temporal-first hybrid AI workflow orchestration)_
 
-- [ ] 3. Database and Caching Infrastructure
+- [x] 3. Database and Caching Infrastructure
   - Create PostgreSQL Docker configuration with development database setup
   - Set up Redis Docker configuration for caching and session management
   - Create database migration system using SQLx with per-service schema isolation
@@ -37,7 +37,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up database connection pooling and transaction management abstractions
   - _Requirements: 3.1 (Temporal-first backend microservices), 2.1 (Multi-tenant architecture)_
 
-- [ ] 4. Shared Library Foundation
+- [x] 4. Shared Library Foundation
   - Implement core repository traits in `services/shared/src/repository/`
   - Create common error types and result handling utilities
   - Build Temporal activity and workflow trait abstractions
@@ -46,37 +46,63 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up health check utilities and service discovery abstractions
   - _Requirements: 3.1, 14.1 (Cross-service workflow orchestration), 7.1 (DevOps and operational excellence)_
 
-## Phase 2: Auth Service with Temporal Workflows (Weeks 3-4)
+## Phase 2: Temporal SDK Integration and Core Services (Weeks 3-4)
 
-- [ ] 5. Auth Service Dual-Mode Implementation
-  - Implement Auth Service with HTTP server mode (port 8081) for direct endpoints
-  - Create Auth Service Temporal worker mode for workflow execution
-  - Build JWT token generation and validation for direct authentication
-  - Implement password hashing with bcrypt for user credentials
-  - Create user registration and login direct endpoints for simple operations
-  - Set up Redis session management for authentication state
+- [x] 5. Temporal SDK Integration
+  - Replace placeholder Temporal client with actual Temporal Rust SDK
+  - Update Cargo.toml dependencies to include real Temporal SDK
+  - Implement proper Temporal client connection and configuration
+  - Create Temporal worker registration and task queue management
+  - Add Temporal workflow and activity registration system
+  - Test Temporal connectivity and basic workflow execution
+  - _Requirements: 3.1 (Temporal-first backend microservices), 11.1 (Temporal-first hybrid AI workflow orchestration)_
+
+- [x] 6. Database Migrations and Schema Setup
+  - Create database migration files for all services (users, tenants, files, sessions)
+  - Implement tenant isolation schema setup (schema-per-tenant or row-level security)
+  - Add database seeding scripts for development and testing
+  - Create database health checks and connection validation
+  - Set up database indexing strategy for multi-tenant queries
+  - _Requirements: 2.1 (Multi-tenant architecture), 3.1 (Temporal-first backend microservices)_
+
+- [x] 7. Auth Service HTTP Server Implementation
+  - Implement HTTP server with Axum framework for direct endpoints
+  - Create user registration endpoint with input validation
+  - Build login endpoint with JWT token generation
+  - Implement password reset request endpoint
+  - Add user profile CRUD endpoints
+  - Set up middleware for authentication, tenant context, and rate limiting
   - _Requirements: 1.1, 3.1 (Dual-mode services)_
 
-- [ ] 6. Authentication Temporal Workflows (CORE WORKFLOWS)
-  - Implement `user_registration_workflow` with email verification and timeout handling
-  - Create `password_reset_workflow` with secure token generation and expiration
-  - Build `mfa_setup_workflow` for TOTP configuration and backup codes
-  - Develop `sso_authentication_workflow` for external provider integration
-  - Implement `user_onboarding_workflow` for post-registration setup and tenant assignment
+- [x] 8. Auth Service Database Layer
+  - Create database migrations for users, sessions, and auth-related tables
+  - Implement User repository with CRUD operations and tenant isolation
+  - Create Session repository for managing user sessions
+  - Build AuthToken repository for password reset and email verification tokens
+  - Add database indexes for performance optimization
+  - _Requirements: 1.1, 2.1 (Multi-tenant architecture)_
+
+- [x] 9. Auth Service Temporal Worker Mode
+  - Implement Temporal worker mode for auth service
+  - Create user registration workflow with email verification
+  - Build password reset workflow with secure token handling
+  - Implement user onboarding workflow for tenant assignment
+  - Add MFA setup workflow for enhanced security
+  - Create SSO authentication workflow for external providers
   - _Requirements: 1.1, 11.1 (Temporal-first hybrid AI workflow orchestration)_
 
-- [ ] 7. Authentication Activities (TEMPORAL ACTIVITIES)
+- [x] 10. Authentication Activities Implementation
   - Create `create_user_activity` with password hashing and validation
-  - Implement `send_verification_email_activity` with template rendering
+  - Implement `send_verification_email_activity` with email templates
   - Build `validate_user_credentials_activity` with rate limiting
-  - Create `generate_jwt_tokens_activity` with proper claims and expiration
-  - Implement `setup_mfa_activity` with QR code generation and backup codes
-  - Add `provision_sso_user_activity` for automatic user provisioning from SSO
+  - Create `generate_jwt_tokens_activity` with proper claims
+  - Implement `setup_mfa_activity` with TOTP configuration
+  - Add `provision_sso_user_activity` for SSO user creation
   - _Requirements: 1.1, 14.1 (Cross-service workflow orchestration)_
 
 ## Phase 3: Tenant Service with Temporal Workflows (Weeks 5-6)
 
-- [ ] 8. Tenant Service Dual-Mode Implementation
+- [ ] 11. Tenant Service Dual-Mode Implementation
   - Implement Tenant Service with HTTP server mode (port 8085) for direct endpoints
   - Create Tenant Service Temporal worker mode for workflow execution
   - Build tenant CRUD operations for simple tenant management
@@ -85,7 +111,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up tenant isolation and security boundaries
   - _Requirements: 2.1, 3.1 (Dual-mode services)_
 
-- [ ] 9. Tenant Management Temporal Workflows (CORE WORKFLOWS)
+- [-] 12. Tenant Management Temporal Workflows (CORE WORKFLOWS)
   - Implement `tenant_provisioning_workflow` for complete tenant setup with infrastructure
   - Create `tenant_monitoring_workflow` for continuous resource tracking and alerts
   - Build `tenant_upgrade_workflow` with payment processing and rollback capabilities
@@ -94,7 +120,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add `tenant_switching_workflow` for complex multi-service tenant context changes
   - _Requirements: 2.1, 11.1 (Temporal-first hybrid AI workflow orchestration)_
 
-- [ ] 10. Tenant Activities and RBAC (TEMPORAL ACTIVITIES)
+- [ ] 13. Tenant Activities and RBAC (TEMPORAL ACTIVITIES)
   - Create `create_tenant_activity` with infrastructure provisioning
   - Implement `setup_tenant_permissions_activity` for role-based access control
   - Build `monitor_tenant_usage_activity` for quota and resource tracking
@@ -105,7 +131,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 4: User and File Services (Weeks 7-8)
 
-- [ ] 11. User Service Dual-Mode Implementation
+- [ ] 14. User Service Dual-Mode Implementation
   - Implement User Service with HTTP server mode (port 8082) for direct endpoints
   - Create User Service Temporal worker mode for workflow execution
   - Build user profile CRUD operations for simple user management
@@ -114,7 +140,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up user data validation and sanitization
   - _Requirements: 3.1, 13.1 (Team autonomy and vertical ownership)_
 
-- [ ] 12. User Management Temporal Workflows (CORE WORKFLOWS)
+- [ ] 15. User Management Temporal Workflows (CORE WORKFLOWS)
   - Implement `user_profile_sync_workflow` for cross-service user data synchronization
   - Create `user_preference_migration_workflow` for preference updates across services
   - Build `user_data_export_workflow` for GDPR compliance and data portability
@@ -123,7 +149,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add `bulk_user_operation_workflow` for administrative bulk operations
   - _Requirements: 11.1 (Temporal-first hybrid AI workflow orchestration)_
 
-- [ ] 13. File Service Dual-Mode Implementation
+- [ ] 16. File Service Dual-Mode Implementation
   - Implement File Service with HTTP server mode (port 8083) for direct endpoints
   - Create File Service Temporal worker mode for workflow execution
   - Build file metadata CRUD operations for simple file management
@@ -132,7 +158,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up multi-provider storage abstraction (S3, GCS, Azure, local)
   - _Requirements: 4.1, 3.1 (Dual-mode services)_
 
-- [ ] 14. File Processing Temporal Workflows (CORE WORKFLOWS)
+- [ ] 17. File Processing Temporal Workflows (CORE WORKFLOWS)
   - Implement `file_upload_workflow` with virus scanning, validation, and AI processing
   - Create `file_processing_workflow` for parallel thumbnail generation and metadata extraction
   - Build `file_sharing_workflow` with permission setup and notification delivery
@@ -141,7 +167,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add `bulk_file_operation_workflow` for batch file operations
   - _Requirements: 4.1, 11.1 (Temporal-first hybrid AI workflow orchestration)_
 
-- [ ] 15. File Storage Activities (TEMPORAL ACTIVITIES)
+- [ ] 18. File Storage Activities (TEMPORAL ACTIVITIES)
   - Create multi-provider storage abstraction (S3, GCS, Azure, local) as activities
   - Implement `virus_scan_activity` with ClamAV integration and retry logic
   - Build `generate_thumbnails_activity` for image and document previews
@@ -152,7 +178,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 5: API Gateway and Cross-Service Workflows (Weeks 9-10)
 
-- [ ] 16. API Gateway Implementation (Temporal-First)
+- [ ] 19. API Gateway Implementation (Temporal-First)
   - Initialize API Gateway with Rust and Axum (port 8080)
   - Set up Temporal client for workflow orchestration
   - Implement intelligent routing between direct calls and workflow initiation
@@ -161,7 +187,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add rate limiting and request validation
   - _Requirements: 6.1 (Temporal-first API gateway and integration)_
 
-- [ ] 17. Cross-Service Workflow Orchestration
+- [ ] 20. Cross-Service Workflow Orchestration
   - Initialize Workflow Service for cross-service coordination (port 8084)
   - Implement `user_onboarding_workflow` coordinating Auth, User, Tenant, and File services
   - Create `tenant_switching_workflow` with multi-service context updates
@@ -170,7 +196,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add `compliance_workflow` for GDPR and audit requirements
   - _Requirements: 14.1 (Cross-service workflow orchestration)_
 
-- [ ] 18. Workflow Monitoring and Management
+- [ ] 21. Workflow Monitoring and Management
   - Implement workflow status tracking and progress reporting
   - Create workflow cancellation and retry mechanisms
   - Build workflow analytics and performance monitoring
@@ -181,7 +207,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 6: Frontend Microservices Foundation (Weeks 11-12)
 
-- [ ] 19. Shell Application Setup (Module Federation Host)
+- [ ] 22. Shell Application Setup (Module Federation Host)
   - Initialize Shell Application with React 18+ and TypeScript (port 3000)
   - Set up Vite with Module Federation plugin as host configuration
   - Implement global routing and navigation system
@@ -190,7 +216,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add error boundaries and fallback components for micro-frontend failures
   - _Requirements: 8.1, 15.1 (Module Federation and micro-frontend integration)_
 
-- [ ] 20. Shared Design System and Infrastructure
+- [ ] 23. Shared Design System and Infrastructure
   - Create @adx-core/design-system package with TailwindCSS configuration
   - Build reusable UI components (Button, Input, Modal, Card, etc.)
   - Implement shared TypeScript types and interfaces
@@ -199,7 +225,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add shared testing utilities and mock data
   - _Requirements: 8.1, 15.1_
 
-- [ ] 21. Auth Micro-Frontend Setup
+- [ ] 24. Auth Micro-Frontend Setup
   - Initialize Auth Micro-App with React and TypeScript (port 3001)
   - Configure Vite Module Federation as remote with exposed components
   - Implement login, registration, and MFA pages
@@ -208,7 +234,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up integration with Auth BFF service (port 4001)
   - _Requirements: 8.1, 13.1 (Team autonomy and vertical ownership)_
 
-- [ ] 22. Tenant Micro-Frontend Setup
+- [ ] 25. Tenant Micro-Frontend Setup
   - Initialize Tenant Micro-App with React and TypeScript (port 3002)
   - Configure Module Federation remote with tenant management components
   - Implement tenant switching interface
@@ -219,7 +245,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 7: User and File Micro-Frontends (Weeks 13-14)
 
-- [ ] 23. User Micro-Frontend Setup
+- [ ] 26. User Micro-Frontend Setup
   - Initialize User Micro-App with React and TypeScript (port 3004)
   - Configure Module Federation remote with user management components
   - Implement user profile pages and editing forms
@@ -228,7 +254,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up integration with User BFF service (port 4004)
   - _Requirements: 8.1, 13.1_
 
-- [ ] 24. File Micro-Frontend Setup
+- [ ] 27. File Micro-Frontend Setup
   - Initialize File Micro-App with React and TypeScript (port 3003)
   - Configure Module Federation remote with file management components
   - Implement file upload interface with progress tracking
@@ -239,7 +265,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 8: BFF Services Implementation (Weeks 15-16)
 
-- [ ] 25. Auth BFF Service (Node.js/TypeScript)
+- [ ] 28. Auth BFF Service (Node.js/TypeScript)
   - Initialize Auth BFF service with Express and TypeScript (port 4001)
   - Set up Temporal client for workflow execution and status tracking
   - Implement Redis caching for authentication data and user sessions
@@ -248,7 +274,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add request batching and response optimization for auth operations
   - _Requirements: 8.1.1 (BFF pattern integration)_
 
-- [ ] 26. Tenant BFF Service (Node.js/TypeScript)
+- [ ] 29. Tenant BFF Service (Node.js/TypeScript)
   - Initialize Tenant BFF service with Express and TypeScript (port 4002)
   - Set up Temporal client for tenant workflow orchestration
   - Implement Redis caching for tenant data and membership information
@@ -257,7 +283,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add tenant-specific configuration and branding data optimization
   - _Requirements: 8.1.1_
 
-- [ ] 27. File BFF Service (Rust/Axum)
+- [ ] 30. File BFF Service (Rust/Axum)
   - Initialize File BFF service with Rust and Axum (port 4003)
   - Set up Temporal client for file workflow coordination
   - Implement Redis caching for file metadata and permission data
@@ -266,7 +292,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add file search and filtering optimization with caching
   - _Requirements: 8.1.1_
 
-- [ ] 28. User and Workflow BFF Services (Rust/Axum)
+- [ ] 31. User and Workflow BFF Services (Rust/Axum)
   - Initialize User BFF service with Rust and Axum (port 4004)
   - Initialize Workflow BFF service with Rust and Axum (port 4005)
   - Set up Temporal clients for user and workflow orchestration
@@ -277,7 +303,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 9: User Experience and AI Integration (Weeks 17-18)
 
-- [ ] 29. Multi-Language Internationalization Across Microservices
+- [ ] 32. Multi-Language Internationalization Across Microservices
   - Set up react-i18next with namespace-based translation organization across all micro-frontends
   - Create translation files for supported languages (English, Spanish, French, German, Japanese, Chinese)
   - Implement shared translation management system across micro-frontends
@@ -286,7 +312,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Create locale-specific formatting for dates, numbers, and currencies in shared utilities
   - _Requirements: 9.1, 9.2, 9.5, 9.6_
 
-- [ ] 30. Theming System Across Microservices
+- [ ] 33. Theming System Across Microservices
   - Implement CSS custom properties for comprehensive theming support in shared design system
   - Create theme provider with React Context for theme state management across micro-frontends
   - Build theme switching components with system preference detection in Shell application
@@ -295,7 +321,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add theme-aware components and conditional styling throughout all micro-frontends
   - _Requirements: 9.3, 9.4_
 
-- [ ] 31. AI Service Integration and Workflows
+- [ ] 34. AI Service Integration and Workflows
   - Create AI Service with simple model selection based on tenant tier
   - Implement common AI activities (text generation, classification, summarization, entity extraction)
   - Add AI-enhanced Temporal workflows (user onboarding, document processing, email workflows)
@@ -304,7 +330,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add AI usage tracking and cost monitoring across workflows
   - _Requirements: 11.1, 11.2, 11.3 (Temporal-first hybrid AI workflow orchestration)_
 
-- [ ] 32. Module System with Temporal Workflows
+- [ ] 35. Module System with Temporal Workflows
   - Implement comprehensive module architecture with trait-based system and advanced capabilities
   - Create module manager with hot-loading, dependency resolution, and version compatibility checking
   - Build module installation and update workflows using Temporal with rollback capabilities
@@ -315,7 +341,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 10: Testing and Quality Assurance (Weeks 19-20)
 
-- [ ] 33. Comprehensive Testing Infrastructure
+- [ ] 36. Comprehensive Testing Infrastructure
   - Set up unit testing for each backend service and micro-frontend with mocks
   - Create integration tests for Temporal workflows with replay testing
   - Implement cross-service integration tests using test containers
@@ -324,7 +350,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Create security testing and vulnerability scanning for each service
   - _Requirements: 7.1 (DevOps and operational excellence for microservices)_
 
-- [ ] 34. Cross-Platform Testing and Deployment
+- [ ] 37. Cross-Platform Testing and Deployment
   - Set up automated testing for Tauri desktop applications across platforms
   - Create mobile application testing for iOS and Android
   - Implement cross-platform feature testing and compatibility checks
@@ -335,7 +361,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 11: Enterprise Features and Production Readiness (Weeks 21-22)
 
-- [ ] 35. White-Label System with Temporal Workflows
+- [ ] 38. White-Label System with Temporal Workflows
   - Implement `custom_domain_setup_workflow` with DNS verification and SSL provisioning
   - Create `white_label_branding_workflow` with asset validation and rollback capability
   - Build `reseller_setup_workflow` for multi-level white-label hierarchies
@@ -343,7 +369,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Create reseller management with revenue sharing and support routing
   - _Requirements: 12.1 (Temporal-first white-label and custom domains)_
 
-- [ ] 36. License and Quota Management with Workflows
+- [ ] 39. License and Quota Management with Workflows
   - Implement `license_provisioning_workflow` for subscription setup
   - Create `quota_enforcement_workflow` with real-time monitoring
   - Build `license_renewal_workflow` with payment processing
@@ -351,7 +377,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Create compliance reporting and audit trails
   - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-- [ ] 37. Security and Compliance Implementation
+- [ ] 40. Security and Compliance Implementation
   - Implement audit logging and compliance reporting across all services
   - Add data retention and deletion policies with Temporal workflows
   - Create GDPR compliance tools (data export, deletion) as workflows
@@ -361,7 +387,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 12: Final Integration and Production Launch (Weeks 23-24)
 
-- [ ] 38. End-to-End Integration Testing
+- [ ] 41. End-to-End Integration Testing
   - Integrate all microservices with proper error handling and circuit breakers
   - Test complete user workflows from registration to usage across all services
   - Validate multi-tenant isolation and security across microservices
@@ -370,7 +396,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Test cross-micro-frontend integration and Module Federation loading
   - _Requirements: All requirements_
 
-- [ ] 39. Production Deployment and Monitoring
+- [ ] 42. Production Deployment and Monitoring
   - Set up production environment with proper security for all microservices
   - Configure monitoring, alerting, and log aggregation across all services
   - Create disaster recovery and backup procedures for microservices architecture
@@ -379,7 +405,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up independent scaling and deployment for each service and micro-frontend
   - _Requirements: 7.1 (DevOps and operational excellence for microservices)_
 
-- [ ] 40. Documentation and Launch Preparation
+- [ ] 43. Documentation and Launch Preparation
   - Create comprehensive API documentation for all services and BFF endpoints
   - Write deployment and operations guides for microservices architecture
   - Build user onboarding and admin documentation covering all micro-frontends

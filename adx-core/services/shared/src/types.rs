@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
 
 // Common ID types
 pub type UserId = String;
@@ -94,21 +94,19 @@ pub struct WorkflowStatusResponse {
 // Tenant quotas
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TenantQuotas {
-    pub max_users: u32,
-    pub max_storage_gb: u32,
-    pub max_api_calls_per_hour: u32,
-    pub max_workflows_per_hour: u32,
-    pub max_file_upload_size_mb: u32,
+    pub max_users: Option<u32>,
+    pub max_storage_gb: Option<u32>,
+    pub max_api_calls_per_hour: Option<u32>,
+    pub max_workflows_per_hour: Option<u32>,
 }
 
 impl Default for TenantQuotas {
     fn default() -> Self {
         Self {
-            max_users: 10,
-            max_storage_gb: 5,
-            max_api_calls_per_hour: 1000,
-            max_workflows_per_hour: 100,
-            max_file_upload_size_mb: 100,
+            max_users: Some(10),
+            max_storage_gb: Some(5),
+            max_api_calls_per_hour: Some(1000),
+            max_workflows_per_hour: Some(100),
         }
     }
 }

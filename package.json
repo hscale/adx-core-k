@@ -11,7 +11,14 @@
     "test:watch": "vitest",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "setup-github": "tsx setup-github-sync.ts",
+    "sync-tasks": "tsx sync-adx-core-tasks.ts",
+    "sync-tasks-dry-run": "tsx sync-adx-core-tasks.ts --dry-run",
+    "sync-task-completion": "tsx sync-task-1-completion.ts",
+    "hook-github-sync": "tsx kiro-hook-github-sync.ts",
+    "hook-github-sync-auto": "tsx kiro-hook-github-sync.ts --auto",
+    "hook-github-sync-dry-run": "tsx kiro-hook-github-sync.ts --dry-run"
   },
   "keywords": [
     "kiro",

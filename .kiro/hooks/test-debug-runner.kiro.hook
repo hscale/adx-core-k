@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "name": "Test & Debug Runner",
+  "description": "Comprehensive testing hook that runs all test suites (unit, integration, workflow, e2e), validates project functionality, and creates reusable testing scripts for the ADX Core project. Supports both Rust backend and TypeScript frontend testing with Temporal workflow validation.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "adx-core/Cargo.toml",
+      "adx-core/services/*/Cargo.toml",
+      "package.json",
+      "src/**/*.ts",
+      "adx-core/services/*/src/**/*.rs",
+      "adx-core/scripts/*.sh",
+      "vitest.config.ts",
+      "tsconfig.json"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A comprehensive testing and debugging session has been triggered. Please:\n\n1. **Run All Test Suites**:\n   - Execute Rust backend unit tests (`cargo test --workspace --lib`)\n   - Execute Rust integration tests (`cargo test --workspace --test integration_tests`)\n   - Execute Temporal workflow tests (`cargo test --workspace --test workflow_tests`)\n   - Execute TypeScript unit tests (`npm run test:unit`)\n   - Execute frontend integration tests (`npm run test:integration`)\n   - Execute end-to-end tests (`npm run test:e2e`)\n\n2. **Validate Core Functionality**:\n   - Check database connectivity and migrations\n   - Validate Temporal server connectivity\n   - Test multi-tenant isolation\n   - Verify API Gateway routing\n   - Check BFF service integration\n   - Validate cross-service communication\n\n3. **Create Reusable Testing Scripts**:\n   - Generate `scripts/test-all.sh` for comprehensive testing\n   - Create `scripts/test-backend.sh` for Rust backend tests\n   - Create `scripts/test-frontend.sh` for TypeScript frontend tests\n   - Generate `scripts/test-workflows.sh` for Temporal workflow tests\n   - Create `scripts/debug-services.sh` for service debugging\n   - Generate `scripts/validate-setup.sh` for environment validation\n\n4. **Debug and Fix Issues**:\n   - Identify and fix any failing tests\n   - Resolve dependency conflicts\n   - Fix configuration issues\n   - Address performance bottlenecks\n   - Ensure proper error handling\n\n5. **Generate Test Reports**:\n   - Create detailed test coverage reports\n   - Generate performance benchmarks\n   - Document test results and recommendations\n   - Create debugging guides for common issues\n\nFocus on creating a robust testing infrastructure that can be used repeatedly for quality assurance and debugging throughout the development lifecycle. Ensure all scripts are well-documented and follow the ADX Core architecture patterns (Temporal-first, multi-tenant, microservices)."
+  }
+}

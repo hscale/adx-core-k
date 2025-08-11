@@ -19,8 +19,8 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-temporal-sdk = { workspace = true }
-temporal-sdk-core = { workspace = true }
+# temporal-sdk = { workspace = true }
+# temporal-sdk-core = { workspace = true }
 config = { workspace = true }
 clap = { workspace = true }
 
@@ -29,3 +29,4 @@ adx-shared = { path = "../shared" }
 
 # Service-specific dependencies
 async-trait = "0.1"
+regex = "1.0"
