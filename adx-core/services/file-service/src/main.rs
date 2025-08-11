@@ -1,6 +1,19 @@
 use clap::{Parser, Subcommand};
 use adx_shared::{config::AppConfig, logging::init_logging};
 
+mod models;
+mod repositories;
+mod handlers;
+mod server;
+mod worker;
+mod activities;
+mod workflows;
+mod storage;
+mod services;
+
+use server::start_server;
+use worker::start_worker;
+
 #[derive(Parser)]
 #[command(name = "file-service")]
 #[command(about = "ADX Core File Management Service")]
@@ -27,13 +40,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Commands::Server => {
             tracing::info!("Starting File Service HTTP server on port {}", config.server.port + 2);
-            // HTTP server implementation would go here
-            tokio::signal::ctrl_c().await?;
+            start_server(config).await?;
         }
         Commands::Worker => {
             tracing::info!("Starting File Service Temporal worker");
-            // Temporal worker implementation would go here
-            tokio::signal::ctrl_c().await?;
+            start_worker(config).await?;
         }
     }
     

@@ -11,6 +11,7 @@ pub struct AppConfig {
     pub auth: AuthConfig,
     pub logging: LoggingConfig,
     pub observability: ObservabilityConfig,
+    pub file_storage: FileStorageConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +71,16 @@ pub struct ObservabilityConfig {
     pub metrics_enabled: bool,
     pub jaeger_endpoint: Option<String>,
     pub prometheus_endpoint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileStorageConfig {
+    pub default_provider: String,
+    pub local_path: Option<String>,
+    pub max_file_size_mb: u64,
+    pub allowed_mime_types: Option<Vec<String>>,
+    pub virus_scan_enabled: bool,
+    pub thumbnail_generation_enabled: bool,
 }
 
 impl AppConfig {
@@ -145,6 +156,14 @@ impl Default for AppConfig {
                 metrics_enabled: true,
                 jaeger_endpoint: Some("http://localhost:14268/api/traces".to_string()),
                 prometheus_endpoint: Some("http://localhost:9090".to_string()),
+            },
+            file_storage: FileStorageConfig {
+                default_provider: "local".to_string(),
+                local_path: Some("./storage".to_string()),
+                max_file_size_mb: 100,
+                allowed_mime_types: None, // Allow all by default
+                virus_scan_enabled: true,
+                thumbnail_generation_enabled: true,
             },
         }
     }

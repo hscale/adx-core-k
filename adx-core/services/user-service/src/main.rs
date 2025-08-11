@@ -1,5 +1,10 @@
 use clap::{Parser, Subcommand};
-use adx_shared::{config::AppConfig, logging::init_logging};
+use adx_shared::{
+    config::AppConfig, 
+    logging::init_logging,
+    database::DatabasePool,
+};
+use user_service::{server, worker};
 
 #[derive(Parser)]
 #[command(name = "user-service")]
@@ -24,16 +29,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     init_logging(&config.logging)?;
     
+    // Initialize database connection
+    let pool = DatabasePool::new(&config.database).await?;
+    
     match cli.command {
         Commands::Server => {
             tracing::info!("Starting User Service HTTP server on port {}", config.server.port + 1);
-            // HTTP server implementation would go here
-            tokio::signal::ctrl_c().await?;
+            server::start_server(config, pool).await?;
         }
         Commands::Worker => {
             tracing::info!("Starting User Service Temporal worker");
-            // Temporal worker implementation would go here
-            tokio::signal::ctrl_c().await?;
+            worker::start_worker(config, pool).await?;
         }
     }
     

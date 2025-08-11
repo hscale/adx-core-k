@@ -29,3 +29,5 @@ adx-shared = { path = "../shared" }
 
 # Service-specific dependencies
 async-trait = "0.1"
+bcrypt = "0.15"
+regex = "1.0"
