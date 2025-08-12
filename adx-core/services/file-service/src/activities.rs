@@ -362,7 +362,7 @@ impl FileActivities for FileActivitiesImpl {
         let has_permission = self.permission_repo
             .check_permission(file_id, user_id, permission_type, &tenant_context)
             .await
-            .map_err(|e| ActivityError::Internal(format!("Failed to check permission: {}", e)))?;
+            .map_err(|e| ActivityError::DatabaseError { message: format!("Failed to check permission: {}", e) })?;
 
         Ok(has_permission)
     }

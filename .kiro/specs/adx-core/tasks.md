@@ -140,7 +140,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up user data validation and sanitization
   - _Requirements: 3.1, 13.1 (Team autonomy and vertical ownership)_
 
-- [ ] 15. User Management Temporal Workflows (CORE WORKFLOWS)
+- [x] 15. User Management Temporal Workflows (CORE WORKFLOWS)
   - Implement `user_profile_sync_workflow` for cross-service user data synchronization
   - Create `user_preference_migration_workflow` for preference updates across services
   - Build `user_data_export_workflow` for GDPR compliance and data portability
@@ -178,7 +178,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
 
 ## Phase 5: API Gateway and Cross-Service Workflows (Weeks 9-10)
 
-- [ ] 19. API Gateway Implementation (Temporal-First)
+- [x] 19. API Gateway Implementation (Temporal-First)
   - Initialize API Gateway with Rust and Axum (port 8080)
   - Set up Temporal client for workflow orchestration
   - Implement intelligent routing between direct calls and workflow initiation
@@ -187,7 +187,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add rate limiting and request validation
   - _Requirements: 6.1 (Temporal-first API gateway and integration)_
 
-- [ ] 20. Cross-Service Workflow Orchestration
+- [x] 20. Cross-Service Workflow Orchestration
   - Initialize Workflow Service for cross-service coordination (port 8084)
   - Implement `user_onboarding_workflow` coordinating Auth, User, Tenant, and File services
   - Create `tenant_switching_workflow` with multi-service context updates
@@ -196,7 +196,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add `compliance_workflow` for GDPR and audit requirements
   - _Requirements: 14.1 (Cross-service workflow orchestration)_
 
-- [ ] 21. Workflow Monitoring and Management
+- [x] 21. Workflow Monitoring and Management
   - Implement workflow status tracking and progress reporting
   - Create workflow cancellation and retry mechanisms
   - Build workflow analytics and performance monitoring

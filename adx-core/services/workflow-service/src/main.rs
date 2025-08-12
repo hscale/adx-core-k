@@ -1,5 +1,12 @@
 use clap::{Parser, Subcommand};
 use adx_shared::{config::AppConfig, logging::init_logging};
+use workflow_service::{
+    config::WorkflowServiceConfig,
+    server::WorkflowServer,
+    worker::WorkflowWorker,
+    error::WorkflowServiceResult,
+};
+use tracing::{info, error};
 
 #[derive(Parser)]
 #[command(name = "workflow-service")]
@@ -20,22 +27,39 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
-    let config = AppConfig::load()?;
+    let app_config = AppConfig::load()?;
     
-    init_logging(&config.logging)?;
+    init_logging(&app_config.logging)?;
+    
+    // Load workflow service specific configuration
+    let workflow_config = load_workflow_config()?;
     
     match cli.command {
         Commands::Server => {
-            tracing::info!("Starting Workflow Service HTTP server on port {}", config.server.port + 3);
-            // HTTP server implementation would go here
-            tokio::signal::ctrl_c().await?;
+            info!("Starting Workflow Service HTTP server on port {}", workflow_config.server.port);
+            
+            let server = WorkflowServer::new(workflow_config);
+            if let Err(e) = server.run().await {
+                error!("Server error: {}", e);
+                return Err(e.into());
+            }
         }
         Commands::Worker => {
-            tracing::info!("Starting Workflow Service Temporal worker");
-            // Temporal worker implementation would go here
-            tokio::signal::ctrl_c().await?;
+            info!("Starting Workflow Service Temporal worker");
+            
+            let worker = WorkflowWorker::new(workflow_config);
+            if let Err(e) = worker.start().await {
+                error!("Worker error: {}", e);
+                return Err(e.into());
+            }
         }
     }
     
     Ok(())
+}
+
+fn load_workflow_config() -> WorkflowServiceResult<WorkflowServiceConfig> {
+    // In a real implementation, this would load from configuration files
+    // For now, use default configuration
+    Ok(WorkflowServiceConfig::default())
 }

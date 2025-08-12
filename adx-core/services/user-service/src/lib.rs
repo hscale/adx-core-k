@@ -7,6 +7,9 @@ pub mod server;
 pub mod worker;
 pub mod validation;
 
+#[cfg(test)]
+mod workflows_test;
+
 // Re-export commonly used types
 pub use models::*;
 pub use repositories::*;

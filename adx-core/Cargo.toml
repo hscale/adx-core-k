@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "services/api-gateway",
     "services/auth-service",
     "services/user-service", 
     "services/file-service",
