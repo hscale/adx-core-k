@@ -1,0 +1,56 @@
+{
+  "navigation": {
+    "dashboard": "Dashboard",
+    "authentication": "Authentication",
+    "tenants": "Tenants",
+    "files": "Files",
+    "users": "Users",
+    "workflows": "Workflows",
+    "modules": "Modules",
+    "settings": "Settings",
+    "signOut": "Sign out"
+  },
+  "dashboard": {
+    "welcome": "Welcome back, {{name}}!",
+    "managingTenant": "Managing {{tenantName}} tenant",
+    "readyToStart": "Ready to get started with ADX Core",
+    "totalUsers": "Total Users",
+    "activeWorkflows": "Active Workflows",
+    "filesStored": "Files Stored",
+    "apiCalls": "API Calls",
+    "fromLastMonth": "from last month",
+    "recentActivity": "Recent Activity",
+    "quickActions": "Quick Actions",
+    "addUser": "Add User",
+    "inviteTeamMember": "Invite new team member",
+    "uploadFile": "Upload File",
+    "addNewDocument": "Add new document",
+    "startWorkflow": "Start Workflow",
+    "createNewProcess": "Create new process",
+    "tenantSettings": "Tenant Settings",
+    "configureTenant": "Configure tenant"
+  },
+  "tenant": {
+    "currentTenant": "Current Tenant",
+    "switchTenant": "Switch Tenant",
+    "switchingTenant": "Switching tenant..."
+  },
+  "theme": {
+    "lightMode": "Light Mode",
+    "darkMode": "Dark Mode"
+  },
+  "errors": {
+    "applicationError": "Application Error",
+    "unexpectedError": "An unexpected error occurred",
+    "errorDetails": "Error Details",
+    "retry": "Retry",
+    "attemptsLeft": "{{count}} attempts left",
+    "reloadApplication": "Reload Application",
+    "microfrontendError": "{{name}} Error"
+  },
+  "loading": {
+    "loading": "Loading...",
+    "loadingApplication": "Loading {{name}}",
+    "pleaseWait": "Please wait while we load the application..."
+  }
+}

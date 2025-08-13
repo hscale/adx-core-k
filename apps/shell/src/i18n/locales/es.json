@@ -1,0 +1,56 @@
+{
+  "navigation": {
+    "dashboard": "Panel de Control",
+    "authentication": "Autenticación",
+    "tenants": "Inquilinos",
+    "files": "Archivos",
+    "users": "Usuarios",
+    "workflows": "Flujos de Trabajo",
+    "modules": "Módulos",
+    "settings": "Configuración",
+    "signOut": "Cerrar sesión"
+  },
+  "dashboard": {
+    "welcome": "¡Bienvenido de vuelta, {{name}}!",
+    "managingTenant": "Gestionando inquilino {{tenantName}}",
+    "readyToStart": "Listo para comenzar con ADX Core",
+    "totalUsers": "Total de Usuarios",
+    "activeWorkflows": "Flujos de Trabajo Activos",
+    "filesStored": "Archivos Almacenados",
+    "apiCalls": "Llamadas API",
+    "fromLastMonth": "del mes pasado",
+    "recentActivity": "Actividad Reciente",
+    "quickActions": "Acciones Rápidas",
+    "addUser": "Agregar Usuario",
+    "inviteTeamMember": "Invitar nuevo miembro del equipo",
+    "uploadFile": "Subir Archivo",
+    "addNewDocument": "Agregar nuevo documento",
+    "startWorkflow": "Iniciar Flujo de Trabajo",
+    "createNewProcess": "Crear nuevo proceso",
+    "tenantSettings": "Configuración del Inquilino",
+    "configureTenant": "Configurar inquilino"
+  },
+  "tenant": {
+    "currentTenant": "Inquilino Actual",
+    "switchTenant": "Cambiar Inquilino",
+    "switchingTenant": "Cambiando inquilino..."
+  },
+  "theme": {
+    "lightMode": "Modo Claro",
+    "darkMode": "Modo Oscuro"
+  },
+  "errors": {
+    "applicationError": "Error de Aplicación",
+    "unexpectedError": "Ocurrió un error inesperado",
+    "errorDetails": "Detalles del Error",
+    "retry": "Reintentar",
+    "attemptsLeft": "{{count}} intentos restantes",
+    "reloadApplication": "Recargar Aplicación",
+    "microfrontendError": "Error de {{name}}"
+  },
+  "loading": {
+    "loading": "Cargando...",
+    "loadingApplication": "Cargando {{name}}",
+    "pleaseWait": "Por favor espere mientras cargamos la aplicación..."
+  }
+}
