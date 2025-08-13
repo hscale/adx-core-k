@@ -225,7 +225,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Add shared testing utilities and mock data
   - _Requirements: 8.1, 15.1_
 
-- [ ] 24. Auth Micro-Frontend Setup
+- [x] 24. Auth Micro-Frontend Setup
   - Initialize Auth Micro-App with React and TypeScript (port 3001)
   - Configure Vite Module Federation as remote with exposed components
   - Implement login, registration, and MFA pages
@@ -234,7 +234,7 @@ This implementation plan ensures all complex operations are built as Temporal wo
   - Set up integration with Auth BFF service (port 4001)
   - _Requirements: 8.1, 13.1 (Team autonomy and vertical ownership)_
 
-- [ ] 25. Tenant Micro-Frontend Setup
+- [x] 25. Tenant Micro-Frontend Setup
   - Initialize Tenant Micro-App with React and TypeScript (port 3002)
   - Configure Module Federation remote with tenant management components
   - Implement tenant switching interface

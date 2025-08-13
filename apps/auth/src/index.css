@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .auth-container {
+    @apply min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8;
+  }
+  
+  .auth-card {
+    @apply max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-lg;
+  }
+  
+  .auth-header {
+    @apply text-center;
+  }
+  
+  .auth-title {
+    @apply text-3xl font-bold text-gray-900 mb-2;
+  }
+  
+  .auth-subtitle {
+    @apply text-sm text-gray-600;
+  }
+  
+  .form-group {
+    @apply space-y-2;
+  }
+  
+  .form-label {
+    @apply block text-sm font-medium text-gray-700;
+  }
+  
+  .form-input {
+    @apply appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm transition-colors;
+  }
+  
+  .form-input-error {
+    @apply border-red-300 focus:ring-red-500 focus:border-red-500;
+  }
+  
+  .form-error {
+    @apply text-sm text-red-600;
+  }
+  
+  .btn {
+    @apply inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-primary {
+    @apply text-white bg-primary-600 hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply text-gray-700 bg-white border-gray-300 hover:bg-gray-50 focus:ring-primary-500;
+  }
+  
+  .btn-danger {
+    @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-500;
+  }
+  
+  .btn-full {
+    @apply w-full;
+  }
+  
+  .loading-spinner {
+    @apply animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full;
+  }
+  
+  .alert {
+    @apply p-4 rounded-md text-sm;
+  }
+  
+  .alert-error {
+    @apply bg-red-50 text-red-800 border border-red-200;
+  }
+  
+  .alert-success {
+    @apply bg-green-50 text-green-800 border border-green-200;
+  }
+  
+  .alert-warning {
+    @apply bg-yellow-50 text-yellow-800 border border-yellow-200;
+  }
+  
+  .alert-info {
+    @apply bg-blue-50 text-blue-800 border border-blue-200;
+  }
+}
