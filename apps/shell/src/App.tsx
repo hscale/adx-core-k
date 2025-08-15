@@ -8,6 +8,7 @@ import { Navigation } from './components/Navigation';
 import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { MicroFrontendLoader } from './components/MicroFrontendLoader';
+import { ThemeInitializer } from './components/ThemeInitializer';
 import './i18n';
 
 // Dynamic imports for micro-frontends
@@ -197,15 +198,16 @@ export const App: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <EventBusProvider>
-        <BrowserRouter>
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-            <ErrorBoundary microFrontendName="Shell Application">
-              {isAuthenticated && <Navigation />}
-              
-              <main className={isAuthenticated ? "max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" : ""}>
-                <Suspense fallback={<MicroFrontendLoader />}>
-                  <Routes>
+      <ThemeInitializer>
+        <EventBusProvider>
+          <BrowserRouter>
+            <div className="min-h-screen bg-background text-text-primary transition-colors duration-300">
+              <ErrorBoundary microFrontendName="Shell Application">
+                {isAuthenticated && <Navigation />}
+                
+                <main className={isAuthenticated ? "max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" : ""}>
+                  <Suspense fallback={<MicroFrontendLoader />}>
+                    <Routes>
                     {/* Public routes */}
                     <Route 
                       path="/auth/*" 
@@ -299,6 +301,7 @@ export const App: React.FC = () => {
           </div>
         </BrowserRouter>
       </EventBusProvider>
-    </QueryClientProvider>
+    </ThemeInitializer>
+  </QueryClientProvider>
   );
 };

@@ -32,57 +32,65 @@ export const useCurrentTenant = () => {
   return useQuery({
     queryKey: tenantKeys.current(),
     queryFn: async () => {
-      // Mock data for development
-      return {
-        id: 'tenant-1',
-        name: 'Demo Tenant',
-        slug: 'demo-tenant',
-        description: 'Demo tenant for development',
-        adminEmail: 'admin@demo.com',
-        subscriptionTier: SubscriptionTier.PROFESSIONAL,
-        status: TenantStatus.ACTIVE,
-        features: ['basic_features', 'advanced_analytics'],
-        quotas: {
-          maxUsers: 10,
-          maxStorageGB: 100,
-          maxApiCallsPerHour: 1000,
-          maxWorkflowsPerHour: 50,
-          currentUsers: 3,
-          currentStorageGB: 25.5,
-          currentApiCallsThisHour: 150,
-          currentWorkflowsThisHour: 5,
-        },
-        settings: {
-          timezone: 'UTC',
-          dateFormat: 'MM/DD/YYYY',
-          language: 'en',
-          theme: 'system' as const,
-          notifications: {
-            email: true,
-            push: true,
-            sms: false,
+      // Set up BFF client context (in a real app, this would come from auth context)
+      tenantBFFClient.setContext('tenant-1', 'mock-auth-token');
+      
+      try {
+        return await tenantBFFClient.getCurrentTenant();
+      } catch (error) {
+        console.warn('BFF service not available, using mock data:', error);
+        // Fallback to mock data if BFF service is not available
+        return {
+          id: 'tenant-1',
+          name: 'Demo Tenant',
+          slug: 'demo-tenant',
+          description: 'Demo tenant for development',
+          adminEmail: 'admin@demo.com',
+          subscriptionTier: SubscriptionTier.PROFESSIONAL,
+          status: TenantStatus.ACTIVE,
+          features: ['basic_features', 'advanced_analytics'],
+          quotas: {
+            maxUsers: 10,
+            maxStorageGB: 100,
+            maxApiCallsPerHour: 1000,
+            maxWorkflowsPerHour: 50,
+            currentUsers: 3,
+            currentStorageGB: 25.5,
+            currentApiCallsThisHour: 150,
+            currentWorkflowsThisHour: 5,
           },
-          security: {
-            mfaRequired: false,
-            sessionTimeout: 60,
-            passwordPolicy: {
-              minLength: 8,
-              requireUppercase: true,
-              requireLowercase: true,
-              requireNumbers: true,
-              requireSpecialChars: false,
-              maxAge: 90,
+          settings: {
+            timezone: 'UTC',
+            dateFormat: 'MM/DD/YYYY',
+            language: 'en',
+            theme: 'system' as const,
+            notifications: {
+              email: true,
+              push: true,
+              sms: false,
+            },
+            security: {
+              mfaRequired: false,
+              sessionTimeout: 60,
+              passwordPolicy: {
+                minLength: 8,
+                requireUppercase: true,
+                requireLowercase: true,
+                requireNumbers: true,
+                requireSpecialChars: false,
+                maxAge: 90,
+              },
+            },
+            branding: {
+              primaryColor: '#3B82F6',
+              secondaryColor: '#6B7280',
+              customDomain: 'https://demo.adxcore.com',
             },
           },
-          branding: {
-            primaryColor: '#3B82F6',
-            secondaryColor: '#6B7280',
-            customDomain: 'https://demo.adxcore.com',
-          },
-        },
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-15T10:30:00Z',
-      };
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-15T10:30:00Z',
+        };
+      }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
@@ -94,8 +102,15 @@ export const useUserTenants = () => {
   return useQuery({
     queryKey: tenantKeys.lists(),
     queryFn: async () => {
-      // Mock data for development
-      return [
+      // Set up BFF client context
+      tenantBFFClient.setContext('tenant-1', 'mock-auth-token');
+      
+      try {
+        return await tenantBFFClient.getUserTenants();
+      } catch (error) {
+        console.warn('BFF service not available, using mock data:', error);
+        // Fallback to mock data if BFF service is not available
+        return [
         {
           id: 'tenant-1',
           name: 'Demo Tenant',
@@ -181,6 +196,7 @@ export const useUserTenants = () => {
           updatedAt: '2024-01-15T10:30:00Z',
         },
       ];
+      }
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -325,8 +341,15 @@ export const useTenantMembers = (tenantId: string) => {
   return useQuery({
     queryKey: tenantKeys.members(tenantId),
     queryFn: async () => {
-      // Mock data for development
-      return [
+      // Set up BFF client context
+      tenantBFFClient.setContext(tenantId, 'mock-auth-token');
+      
+      try {
+        return await tenantBFFClient.getTenantMembers(tenantId);
+      } catch (error) {
+        console.warn('BFF service not available, using mock data:', error);
+        // Fallback to mock data if BFF service is not available
+        return [
         {
           id: 'member-1',
           userId: 'user-1',
@@ -361,6 +384,7 @@ export const useTenantMembers = (tenantId: string) => {
           lastActiveAt: '2024-01-14T16:45:00Z',
         },
       ];
+      }
     },
     enabled: !!tenantId,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -447,8 +471,15 @@ export const useTenantInvitations = (tenantId: string) => {
   return useQuery({
     queryKey: tenantKeys.invitations(tenantId),
     queryFn: async () => {
-      // Mock data for development
-      return [
+      // Set up BFF client context
+      tenantBFFClient.setContext(tenantId, 'mock-auth-token');
+      
+      try {
+        return await tenantBFFClient.getTenantInvitations(tenantId);
+      } catch (error) {
+        console.warn('BFF service not available, using mock data:', error);
+        // Fallback to mock data if BFF service is not available
+        return [
         {
           id: 'invitation-1',
           tenantId,
@@ -472,6 +503,7 @@ export const useTenantInvitations = (tenantId: string) => {
           token: 'invite-token-456',
         },
       ];
+      }
     },
     enabled: !!tenantId,
     staleTime: 2 * 60 * 1000,

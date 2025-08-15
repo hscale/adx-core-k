@@ -1,0 +1,50 @@
+[package]
+name = "ai-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+axum = { version = "0.7", features = ["json", "query"] }
+tower = "0.4"
+tower-http = { version = "0.4", features = ["cors", "trace"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Database and caching
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
+# HTTP client for external AI services
+reqwest = { version = "0.11", features = ["json", "stream"] }
+
+# Temporal SDK (commented out until available)
+# temporal-sdk = "0.1"
+# temporal-sdk-core = "0.1"
+
+# Configuration
+config = "0.13"
+clap = { version = "4.0", features = ["derive"] }
+
+# Shared utilities (commented out until shared crate is available)
+# shared = { path = "../shared" }
+
+# Metrics and monitoring
+prometheus = "0.13"
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+
+# Security
+jsonwebtoken = "9.0"
+bcrypt = "0.15"
+
+# AI/ML libraries
+tiktoken-rs = "0.5"  # Token counting for OpenAI models
+async-openai = "0.17"  # OpenAI API client

@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+/* File-specific styles */
+.file-upload-zone {
+  @apply border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors;
+}
+
+.file-upload-zone.drag-active {
+  @apply border-blue-500 bg-blue-50;
+}
+
+.file-progress-bar {
+  @apply w-full bg-gray-200 rounded-full h-2;
+}
+
+.file-progress-fill {
+  @apply bg-blue-600 h-2 rounded-full transition-all duration-300;
+}
+
+.file-grid {
+  @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4;
+}
+
+.file-item {
+  @apply border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer;
+}
+
+.file-item.selected {
+  @apply border-blue-500 bg-blue-50;
+}
+
+.file-icon {
+  @apply w-12 h-12 mx-auto mb-2;
+}
+
+.folder-icon {
+  @apply text-yellow-500;
+}
+
+.file-name {
+  @apply text-sm font-medium text-gray-900 truncate;
+}
+
+.file-size {
+  @apply text-xs text-gray-500;
+}
+
+.file-date {
+  @apply text-xs text-gray-400;
+}

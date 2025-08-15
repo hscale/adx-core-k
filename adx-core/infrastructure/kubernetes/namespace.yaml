@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: adx-core-prod
+  labels:
+    name: adx-core-prod
+    environment: production
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: adx-core-monitoring
+  labels:
+    name: adx-core-monitoring
+    environment: production

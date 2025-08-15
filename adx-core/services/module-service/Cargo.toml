@@ -1,0 +1,64 @@
+[package]
+name = "module-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.4", features = ["cors", "trace"] }
+hyper = "1.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+
+# Temporal (placeholder - will be replaced with actual SDK)
+# temporal-sdk = "0.1"
+# temporal-sdk-core = "0.1"
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "stream"] }
+
+# Configuration
+config = "0.13"
+clap = { version = "4.0", features = ["derive"] }
+
+# Security and validation
+sha2 = "0.10"
+ring = "0.17"
+jsonwebtoken = "9.0"
+validator = { version = "0.16", features = ["derive"] }
+
+# Async utilities
+futures = "0.3"
+async-trait = "0.1"
+
+# Redis for caching
+redis = { version = "0.24", features = ["tokio-comp"] }
+
+# File handling
+tar = "0.4"
+flate2 = "1.0"
+zip = "0.6"
+
+# Shared dependencies
+adx-shared = { path = "../shared" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.12"
+tempfile = "3.0"

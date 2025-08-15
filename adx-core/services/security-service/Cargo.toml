@@ -1,0 +1,58 @@
+[package]
+name = "security-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.4", features = ["cors", "trace", "request-id"] }
+hyper = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
+
+# Temporal
+temporal-sdk = "0.1"
+temporal-sdk-core = "0.1"
+
+# Security
+bcrypt = "0.15"
+jsonwebtoken = "9.0"
+ring = "0.17"
+rustls = "0.21"
+x509-parser = "0.15"
+
+# Logging and observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+prometheus = "0.13"
+opentelemetry = "0.20"
+
+# Configuration
+config = "0.13"
+clap = { version = "4.0", features = ["derive"] }
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+# Encryption
+aes-gcm = "0.10"
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+
+# Shared dependencies
+shared = { path = "../shared" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.11"
+testcontainers = "0.15"

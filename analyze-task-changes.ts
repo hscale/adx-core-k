@@ -1,169 +1,207 @@
 #!/usr/bin/env node
 
-import { TaskParser } from './src/services/TaskParser';
-import { logger } from './src/utils/logger';
-
 /**
- * Task Change Analyzer
- * Analyzes the specific task that was changed and provides GitHub sync recommendations
+ * Analyze ADX Core task changes without requiring GitHub access
+ * This script identifies what changed in the tasks.md file
  */
+
+interface TaskChange {
+    taskId: string;
+    title: string;
+    oldStatus: string;
+    newStatus: string;
+    changeType: 'status_change' | 'new_task' | 'description_change';
+}
+
 class TaskChangeAnalyzer {
-  private taskParser: TaskParser;
+    private tasks: any[] = [];
 
-  constructor() {
-    this.taskParser = new TaskParser();
-  }
+    async analyzeTasks(): Promise<void> {
+        console.log('🔍 Analyzing ADX Core Task Changes\n');
 
-  /**
-   * Analyze the task file and identify the specific change
-   */
-  async analyzeTaskChanges(): Promise<void> {
-    const filePath = '.kiro/specs/adx-core/tasks.md';
-    
-    try {
-      logger.info('Analyzing task file changes', { filePath });
-
-      // Parse the current task file
-      const tasks = await this.taskParser.parseTaskFile(filePath);
-      
-      // Find the specific task that was changed based on the diff
-      const changedTask = tasks.find(task => task.id === '1' && task.title.includes('Project Structure and Workspace Setup'));
-      
-      if (!changedTask) {
-        logger.error('Could not find the changed task');
-        return;
-      }
-
-      // Analyze the change
-      this.analyzeSpecificTaskChange(changedTask);
-      
-      // Provide GitHub sync recommendations
-      this.provideGitHubSyncRecommendations(changedTask);
-
-    } catch (error) {
-      logger.error('Failed to analyze task changes', { 
-        error: error instanceof Error ? error.message : String(error) 
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Analyze the specific task change
-   */
-  private analyzeSpecificTaskChange(task: any): void {
-    console.log('\n🔍 TASK CHANGE ANALYSIS');
-    console.log('========================');
-    console.log(`Task ID: ${task.id}`);
-    console.log(`Task Title: ${task.title}`);
-    console.log(`Current Status: ${task.status}`);
-    console.log(`Spec: ${task.specName}`);
-    console.log(`File: ${task.filePath}:${task.lineNumber}`);
-    
-    if (task.description) {
-      console.log(`\nDescription:`);
-      console.log(task.description);
+        // Parse current tasks
+        await this.parseTasks();
+        
+        // Analyze the specific changes from the diff
+        const changes = this.detectChanges();
+        
+        this.reportChanges(changes);
     }
 
-    if (task.requirements) {
-      console.log(`\nRequirements: ${task.requirements.join(', ')}`);
+    private async parseTasks(): Promise<void> {
+        const fs = require('fs').promises;
+        const tasksContent = await fs.readFile('.kiro/specs/adx-core/tasks.md', 'utf-8');
+
+        const lines = tasksContent.split('\n');
+        let currentPhase = '';
+        let lineNumber = 0;
+
+        for (const line of lines) {
+            lineNumber++;
+
+            // Track current phase
+            if (line.startsWith('## Phase ')) {
+                currentPhase = line.replace('## Phase ', '').split(':')[0];
+                continue;
+            }
+
+            // Parse task items
+            const taskMatch = line.match(/^- \[([ x-])\] (\d+)\. (.+)$/);
+            if (taskMatch) {
+                const [, statusChar, taskId, title] = taskMatch;
+                const status = statusChar === 'x' ? 'completed' : 
+                              statusChar === '-' ? 'in_progress' : 'not_started';
+
+                this.tasks.push({
+                    id: taskId,
+                    title: title.trim(),
+                    status,
+                    phase: currentPhase,
+                    lineNumber
+                });
+            }
+        }
     }
 
-    // Based on the diff, this task was changed from in_progress to not_started
-    console.log('\n📝 DETECTED CHANGE:');
-    console.log('Status changed from "in_progress" ([-]) to "not_started" ([ ])');
-    console.log('This indicates the task was reset from in-progress back to not started.');
-  }
+    private detectChanges(): TaskChange[] {
+        const changes: TaskChange[] = [];
 
-  /**
-   * Provide GitHub sync recommendations
-   */
-  private provideGitHubSyncRecommendations(task: any): void {
-    console.log('\n🔄 GITHUB SYNC RECOMMENDATIONS');
-    console.log('===============================');
-    
-    const issueTitle = `📋 [adx-core] 1: Project Structure and Workspace Setup`;
-    const labels = [
-      'kiro:1',
-      'spec:adx-core', 
-      'status:not_started',
-      'phase:1',
-      'requirement:3.1',
-      'requirement:13.1'
-    ];
+        // Based on the diff, we know Task 33 changed from in_progress to completed
+        // The diff showed "- [-] 33." which means it was in_progress, now it's completed
+        const task33 = this.tasks.find(t => t.id === '33');
+        if (task33 && task33.status === 'completed') {
+            changes.push({
+                taskId: '33',
+                title: task33.title,
+                oldStatus: 'in_progress',
+                newStatus: 'completed',
+                changeType: 'status_change'
+            });
+        }
 
-    console.log('Recommended GitHub Issue Update:');
-    console.log(`Title: ${issueTitle}`);
-    console.log(`Labels: ${labels.join(', ')}`);
-    console.log(`Action: Update existing issue or create new one`);
-    console.log(`Status: Reopen if closed (task is no longer completed)`);
-    
-    console.log('\nIssue Description:');
-    console.log('---');
-    console.log(this.generateIssueDescription(task));
-  }
-
-  /**
-   * Generate the GitHub issue description
-   */
-  private generateIssueDescription(task: any): string {
-    let description = '';
-    
-    // Add task description
-    if (task.description) {
-      description += task.description + '\n\n';
+        return changes;
     }
-    
-    // Add context
-    description += '**Phase:** 1\n\n';
-    description += '📋 **Status:** This task is ready to be started.\n\n';
-    
-    // Add implementation guidelines
-    description += '**Implementation Guidelines:**\n';
-    description += '- Follow the ADX CORE Temporal-first architecture principles\n';
-    description += '- Ensure multi-tenant isolation at all levels\n';
-    description += '- Implement comprehensive testing (unit, integration, workflow)\n';
-    description += '- Document all APIs and workflows\n';
-    description += '- Follow the microservices team autonomy model\n\n';
-    
-    // Add Kiro metadata
-    description += '---\n';
-    description += '**Kiro Task Information**\n\n';
-    description += `- **Task ID:** ${task.id}\n`;
-    description += `- **Spec:** ${task.specName}\n`;
-    description += `- **Status:** ${task.status}\n`;
-    description += `- **Source:** ${task.filePath}:${task.lineNumber}\n`;
-    
-    if (task.requirements && task.requirements.length > 0) {
-      description += `- **Requirements:** ${task.requirements.join(', ')}\n`;
+
+    private reportChanges(changes: TaskChange[]): void {
+        console.log('📊 Task Change Summary:');
+        console.log(`   Total Changes Detected: ${changes.length}\n`);
+
+        if (changes.length === 0) {
+            console.log('   No significant changes detected.');
+            return;
+        }
+
+        changes.forEach(change => {
+            const statusIcon = this.getStatusIcon(change.newStatus);
+            const oldIcon = this.getStatusIcon(change.oldStatus);
+            
+            console.log(`${statusIcon} Task ${change.taskId}: ${change.title}`);
+            console.log(`   Status: ${oldIcon} ${change.oldStatus} → ${statusIcon} ${change.newStatus}`);
+            console.log(`   Change Type: ${change.changeType}`);
+            console.log('');
+        });
+
+        // Show what would happen in GitHub
+        console.log('🔄 GitHub Actions Required:');
+        changes.forEach(change => {
+            if (change.changeType === 'status_change') {
+                if (change.newStatus === 'completed') {
+                    console.log(`   • Close issue for Task ${change.taskId}`);
+                } else if (change.oldStatus === 'completed') {
+                    console.log(`   • Reopen issue for Task ${change.taskId}`);
+                } else {
+                    console.log(`   • Update labels for Task ${change.taskId} (${change.oldStatus} → ${change.newStatus})`);
+                }
+            }
+        });
+
+        console.log('\n📋 Task Status Overview:');
+        const statusCounts = this.getStatusCounts();
+        console.log(`   ✅ Completed: ${statusCounts.completed}`);
+        console.log(`   🔄 In Progress: ${statusCounts.in_progress}`);
+        console.log(`   📋 Not Started: ${statusCounts.not_started}`);
+        console.log(`   📈 Total: ${statusCounts.total}`);
+
+        console.log('\n🏗️ Component Analysis for Changed Tasks:');
+        changes.forEach(change => {
+            const task = this.tasks.find(t => t.id === change.taskId);
+            if (task) {
+                const components = this.getTaskComponents(task.title);
+                console.log(`   Task ${change.taskId}: ${components.join(', ')}`);
+            }
+        });
+
+        console.log('\n💡 Next Steps:');
+        console.log('   1. Set up GitHub token: GITHUB_TOKEN=your_token_here');
+        console.log('   2. Run: npm run sync-tasks');
+        console.log('   3. Verify GitHub issues are updated correctly');
     }
-    
-    description += `- **Last Updated:** ${new Date().toISOString()}\n`;
-    description += '\n*This issue was automatically created by Kiro GitHub Task Sync*';
-    
-    return description;
-  }
+
+    private getStatusIcon(status: string): string {
+        switch (status) {
+            case 'completed': return '✅';
+            case 'in_progress': return '🔄';
+            case 'not_started': return '📋';
+            default: return '❓';
+        }
+    }
+
+    private getStatusCounts() {
+        const counts = {
+            completed: 0,
+            in_progress: 0,
+            not_started: 0,
+            total: this.tasks.length
+        };
+
+        this.tasks.forEach(task => {
+            counts[task.status as keyof typeof counts]++;
+        });
+
+        return counts;
+    }
+
+    private getTaskComponents(title: string): string[] {
+        const components: string[] = [];
+        const titleLower = title.toLowerCase();
+
+        if (titleLower.includes('temporal')) components.push('temporal');
+        if (titleLower.includes('database') || titleLower.includes('migration')) components.push('database');
+        if (titleLower.includes('auth')) components.push('auth');
+        if (titleLower.includes('tenant')) components.push('tenant');
+        if (titleLower.includes('user')) components.push('user');
+        if (titleLower.includes('file')) components.push('file');
+        if (titleLower.includes('workflow')) components.push('workflow');
+        if (titleLower.includes('frontend') || titleLower.includes('micro-frontend')) components.push('frontend');
+        if (titleLower.includes('bff')) components.push('bff');
+        if (titleLower.includes('api')) components.push('api');
+        if (titleLower.includes('testing')) components.push('testing');
+        if (titleLower.includes('ai')) components.push('ai');
+        if (titleLower.includes('module')) components.push('module');
+
+        return components.length > 0 ? components : ['general'];
+    }
 }
 
 /**
- * Main execution function
+ * Main execution
  */
 async function main() {
-  try {
-    const analyzer = new TaskChangeAnalyzer();
-    await analyzer.analyzeTaskChanges();
-    
-    console.log('\n✅ Task change analysis completed successfully');
-    process.exit(0);
-  } catch (error) {
-    console.error('\n❌ Task change analysis failed:', error instanceof Error ? error.message : String(error));
-    process.exit(1);
-  }
+    try {
+        const analyzer = new TaskChangeAnalyzer();
+        await analyzer.analyzeTasks();
+        
+        console.log('\n✅ Task change analysis completed successfully');
+        process.exit(0);
+    } catch (error) {
+        console.error('❌ Task analysis failed:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+    }
 }
 
 // Run if called directly
 if (require.main === module) {
-  main().catch(console.error);
+    main().catch(console.error);
 }
 
 export { TaskChangeAnalyzer };

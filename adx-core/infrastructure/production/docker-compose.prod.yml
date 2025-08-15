@@ -1,0 +1,480 @@
+version: '3.8'
+
+services:
+  # API Gateway - Production
+  api-gateway:
+    build:
+      context: ../../services/api-gateway
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - TEMPORAL_SERVER_URL=${TEMPORAL_SERVER_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - LOG_LEVEL=info
+      - METRICS_PORT=9090
+    volumes:
+      - ./ssl:/app/ssl:ro
+      - ./logs:/app/logs
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Auth Service - Production
+  auth-service:
+    build:
+      context: ../../services/auth-service
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8081:8081"
+    environment:
+      - RUST_ENV=production
+      - DATABASE_URL=${AUTH_DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - TEMPORAL_SERVER_URL=${TEMPORAL_SERVER_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - BCRYPT_COST=12
+      - MFA_SECRET=${MFA_SECRET}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+      - LOG_LEVEL=info
+    volumes:
+      - ./ssl:/app/ssl:ro
+      - ./logs:/app/logs
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # User Service - Production
+  user-service:
+    build:
+      context: ../../services/user-service
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8082:8082"
+    environment:
+      - RUST_ENV=production
+      - DATABASE_URL=${USER_DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - TEMPORAL_SERVER_URL=${TEMPORAL_SERVER_URL}
+      - LOG_LEVEL=info
+    volumes:
+      - ./ssl:/app/ssl:ro
+      - ./logs:/app/logs
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 2
+
+  # File Service - Production
+  file-service:
+    build:
+      context: ../../services/file-service
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8083:8083"
+    environment:
+      - RUST_ENV=production
+      - DATABASE_URL=${FILE_DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - TEMPORAL_SERVER_URL=${TEMPORAL_SERVER_URL}
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_REGION=${S3_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - MAX_FILE_SIZE=100MB
+      - LOG_LEVEL=info
+    volumes:
+      - ./ssl:/app/ssl:ro
+      - ./logs:/app/logs
+      - file-storage:/app/storage
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 2
+
+  # Workflow Service - Production
+  workflow-service:
+    build:
+      context: ../../services/workflow-service
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8084:8084"
+    environment:
+      - RUST_ENV=production
+      - DATABASE_URL=${WORKFLOW_DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - TEMPORAL_SERVER_URL=${TEMPORAL_SERVER_URL}
+      - LOG_LEVEL=info
+    volumes:
+      - ./ssl:/app/ssl:ro
+      - ./logs:/app/logs
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 2
+
+  # Tenant Service - Production
+  tenant-service:
+    build:
+      context: ../../services/tenant-service
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8085:8085"
+    environment:
+      - RUST_ENV=production
+      - DATABASE_URL=${TENANT_DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - TEMPORAL_SERVER_URL=${TEMPORAL_SERVER_URL}
+      - LOG_LEVEL=info
+    volumes:
+      - ./ssl:/app/ssl:ro
+      - ./logs:/app/logs
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 2
+
+  # Security Service - Production
+  security-service:
+    build:
+      context: ../../services/security-service
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8086:8086"
+    environment:
+      - RUST_ENV=production
+      - DATABASE_URL=${SECURITY_DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - TEMPORAL_SERVER_URL=${TEMPORAL_SERVER_URL}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - LOG_LEVEL=info
+    volumes:
+      - ./ssl:/app/ssl:ro
+      - ./logs:/app/logs
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 2
+
+  # License Service - Production
+  license-service:
+    build:
+      context: ../../services/license-service
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8087:8087"
+    environment:
+      - RUST_ENV=production
+      - DATABASE_URL=${LICENSE_DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - TEMPORAL_SERVER_URL=${TEMPORAL_SERVER_URL}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - LOG_LEVEL=info
+    volumes:
+      - ./ssl:/app/ssl:ro
+      - ./logs:/app/logs
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8087/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 2
+
+  # PostgreSQL - Production with High Availability
+  postgres-primary:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_REPLICATION_USER=${POSTGRES_REPLICATION_USER}
+      - POSTGRES_REPLICATION_PASSWORD=${POSTGRES_REPLICATION_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./backups:/backups
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+
+  postgres-replica:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGUSER=${POSTGRES_REPLICATION_USER}
+      - POSTGRES_MASTER_SERVICE=postgres-primary
+    volumes:
+      - postgres-replica-data:/var/lib/postgresql/data
+      - ./postgres/recovery.conf:/etc/postgresql/recovery.conf
+    networks:
+      - adx-network
+    restart: unless-stopped
+    depends_on:
+      - postgres-primary
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+
+  # Redis Cluster - Production
+  redis-master:
+    image: redis:7-alpine
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis-data:/data
+      - ./redis/redis-master.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - adx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis-replica:
+    image: redis:7-alpine
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis-replica-data:/data
+      - ./redis/redis-replica.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - adx-network
+    restart: unless-stopped
+    depends_on:
+      - redis-master
+
+  # Temporal Server - Production
+  temporal:
+    image: temporalio/auto-setup:1.22.0
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD}
+      - POSTGRES_SEEDS=postgres-primary
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_ES=false
+      - ES_SEEDS=elasticsearch
+      - ES_VERSION=v7
+    volumes:
+      - ./temporal-config:/etc/temporal/config/dynamicconfig
+    networks:
+      - adx-network
+    restart: unless-stopped
+    depends_on:
+      - postgres-primary
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+
+  # Nginx Load Balancer - Production
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/logs:/var/log/nginx
+    networks:
+      - adx-network
+    restart: unless-stopped
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/rules:/etc/prometheus/rules
+      - prometheus-data:/prometheus
+    networks:
+      - adx-network
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - adx-network
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager-data:/alertmanager
+    networks:
+      - adx-network
+    restart: unless-stopped
+
+  # Log Aggregation
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - adx-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    volumes:
+      - ./logging/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logs:/app/logs:ro
+    networks:
+      - adx-network
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - adx-network
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+
+volumes:
+  postgres-data:
+  postgres-replica-data:
+  redis-data:
+  redis-replica-data:
+  file-storage:
+  prometheus-data:
+  grafana-data:
+  alertmanager-data:
+  elasticsearch-data:
+
+networks:
+  adx-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

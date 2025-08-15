@@ -55,6 +55,15 @@ export interface TenantState {
 export interface ThemeState {
   theme: 'light' | 'dark' | 'system';
   resolvedTheme: 'light' | 'dark';
+  systemTheme: 'light' | 'dark';
+}
+
+export interface ThemePreferences {
+  theme: 'light' | 'dark' | 'system';
+  accentColor?: string;
+  fontSize?: 'sm' | 'md' | 'lg';
+  reducedMotion?: boolean;
+  highContrast?: boolean;
 }
 
 export interface I18nState {

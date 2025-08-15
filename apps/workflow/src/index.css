@@ -1,0 +1,74 @@
+@import '@adx-core/design-system/styles.css';
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+  width: 100%;
+}
+
+/* Workflow-specific styles */
+.workflow-status-indicator {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.workflow-status-running {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.workflow-status-completed {
+  @apply bg-green-100 text-green-800;
+}
+
+.workflow-status-failed {
+  @apply bg-red-100 text-red-800;
+}
+
+.workflow-status-pending {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.workflow-status-cancelled {
+  @apply bg-gray-100 text-gray-800;
+}
+
+.workflow-progress-bar {
+  @apply w-full bg-gray-200 rounded-full h-2.5;
+}
+
+.workflow-progress-fill {
+  @apply bg-blue-600 h-2.5 rounded-full transition-all duration-300;
+}
+
+.workflow-card {
+  @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow;
+}
+
+.workflow-metric-card {
+  @apply bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200;
+}

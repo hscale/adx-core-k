@@ -1,0 +1,32 @@
+[package]
+name = "license-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true }
+redis = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+config = { workspace = true }
+dotenvy = { workspace = true }
+reqwest = { workspace = true }
+clap = { workspace = true }
+
+# Local dependencies
+adx-shared = { path = "../shared" }
+
+# License-specific dependencies
+rust_decimal = { version = "1.32", features = ["serde"] }
+rust_decimal_macros = "1.32"
+base64 = "0.21"

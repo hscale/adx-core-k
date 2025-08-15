@@ -6,6 +6,10 @@ members = [
     "services/file-service",
     "services/tenant-service",
     "services/workflow-service",
+    "services/ai-service",
+    "services/module-service",
+    "services/white-label-service",
+    "services/license-service",
     "services/shared",
 ]
 
