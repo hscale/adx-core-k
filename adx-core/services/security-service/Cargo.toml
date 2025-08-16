@@ -20,9 +20,9 @@ thiserror = "1.0"
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
 
-# Temporal
-temporal-sdk = "0.1"
-temporal-sdk-core = "0.1"
+# Temporal (commented out until SDK is stable)
+# temporal-sdk = "0.1"
+# temporal-sdk-core = "0.1"
 
 # Security
 bcrypt = "0.15"
@@ -50,7 +50,7 @@ chacha20poly1305 = "0.10"
 argon2 = "0.5"
 
 # Shared dependencies
-shared = { path = "../shared" }
+adx-shared = { path = "../shared" }
 
 [dev-dependencies]
 tokio-test = "0.4"

@@ -36,11 +36,11 @@ opentelemetry = "0.21"
 config = "0.13"
 
 # Temporal SDK (placeholder - will be replaced with actual SDK)
-temporal-sdk = "0.1"
-temporal-sdk-core = "0.1"
+# temporal-sdk = "0.1"
+# temporal-sdk-core = "0.1"
 
 # Shared dependencies
-shared = { path = "../shared" }
+adx-shared = { path = "../shared" }
 
 [dev-dependencies]
 tokio-test = "0.4"

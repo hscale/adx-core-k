@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Commands::Migrate => {
             info!("Running database migrations...");
-            run_migrations(&pool).await?;
+            run_migrations(&*pool).await?;
             info!("Migrations completed successfully");
         }
         
@@ -98,7 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         Commands::Health => {
             info!("Checking database health...");
-            match check_database_health(&pool).await {
+            match check_database_health(&*pool).await {
                 Ok(_) => info!("Database is healthy"),
                 Err(e) => {
                     error!("Database health check failed: {}", e);
@@ -109,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         Commands::Validate => {
             info!("Validating database integrity...");
-            let seeder = DatabaseSeeder::new(pool);
+            let seeder = DatabaseSeeder::new((*pool).clone());
             let issues = seeder.validate_seeded_data().await?;
             
             if issues.is_empty() {
@@ -128,7 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         Commands::Stats => {
             info!("Gathering database statistics...");
-            let seeder = DatabaseSeeder::new(pool);
+            let seeder = DatabaseSeeder::new((*pool).clone());
             let stats = seeder.get_seeding_stats().await?;
             println!("{}", stats);
         }
@@ -136,14 +136,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Clean => {
             info!("Cleaning test data from database...");
             env::set_var("ENVIRONMENT", "test");
-            let seeder = DatabaseSeeder::new(pool);
+            let seeder = DatabaseSeeder::new((*pool).clone());
             seeder.run_test_seeds().await?; // This includes cleanup
             info!("Test data cleaned successfully");
         }
         
         Commands::CreateTenant { name, admin_email } => {
             info!("Creating tenant: {} with admin: {}", name, admin_email);
-            let seeder = DatabaseSeeder::new(pool);
+            let seeder = DatabaseSeeder::new((*pool).clone());
             let tenant_id = seeder.seed_tenant_data(&name, &admin_email).await?;
             info!("Tenant created successfully with ID: {}", tenant_id);
         }
@@ -154,7 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let health_results: Vec<(String, String, serde_json::Value, i32)> = sqlx::query_as(
                 "SELECT check_name, status, details, response_time_ms FROM enhanced_database_health_check()"
             )
-            .fetch_all(&pool)
+            .fetch_all(&*pool)
             .await?;
             
             println!("\n=== Database Health Check Results ===");
@@ -182,7 +182,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let index_results: Vec<(String, String, String, i64, i64, i64, String)> = sqlx::query_as(
                 "SELECT table_name, index_name, index_size, index_scans, tuples_read, tuples_fetched, recommendation FROM analyze_index_performance()"
             )
-            .fetch_all(&pool)
+            .fetch_all(&*pool)
             .await?;
             
             println!("\n=== Index Performance Analysis ===");
@@ -201,7 +201,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             // Update connection pool stats
             sqlx::query("SELECT monitor_connection_pool()")
-                .execute(&pool)
+                .execute(&*pool)
                 .await?;
             
             let pool_stats: Vec<(String, i32, i32, i32, i32, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
@@ -210,7 +210,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                  ORDER BY recorded_at DESC 
                  LIMIT 10"
             )
-            .fetch_all(&pool)
+            .fetch_all(&*pool)
             .await?;
             
             println!("\n=== Connection Pool Statistics ===");
