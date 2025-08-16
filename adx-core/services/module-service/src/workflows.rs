@@ -1,757 +1,771 @@
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 use uuid::Uuid;
+use chrono::{DateTime, Utc};
+use semver::Version;
 
-use crate::error::{WorkflowError, ActivityError};
-use crate::models::{
-    InstallModuleWorkflowInput, InstallModuleWorkflowOutput,
-    UpdateModuleWorkflowInput, UpdateModuleWorkflowOutput,
-    UninstallModuleWorkflowInput, UninstallModuleWorkflowOutput,
-    MarketplaceSyncWorkflowInput, MarketplaceSyncWorkflowOutput,
-    SecurityScanWorkflowInput, SecurityScanWorkflowOutput,
+use crate::{
+    ModuleResult, ModuleError, InstallModuleRequest, InstallModuleResult,
+    UpdateModuleRequest, UpdateModuleResult, UninstallModuleRequest, UninstallModuleResult,
+    ModulePackage, ModuleInstance, ModuleStatus, SecurityScanResult,
 };
-use crate::activities::ModuleActivities;
 
-// Temporal workflow implementations (using placeholder SDK)
-// In production, these would use the actual Temporal Rust SDK
+// Temporal workflow implementations for module operations
 
-/// Module Installation Workflow
-/// Handles the complete installation process with rollback capabilities
+/// Module installation workflow with comprehensive error handling and rollback
+#[temporal_sdk::workflow]
 pub async fn install_module_workflow(
-    input: InstallModuleWorkflowInput,
-) -> Result<InstallModuleWorkflowOutput, WorkflowError> {
-    let workflow_id = format!("install-module-{}-{}", input.module_id, Uuid::new_v4());
-    
-    // Step 1: Validate module and tenant permissions
-    let validation_result = call_activity(
-        ModuleActivities::validate_module_installation,
-        ValidateModuleInstallationRequest {
-            module_id: input.module_id.clone(),
-            version: input.version.clone(),
-            tenant_id: input.tenant_id.clone(),
-            user_id: input.user_id.clone(),
-            force_reinstall: input.force_reinstall,
+    request: InstallModuleRequest,
+) -> Result<InstallModuleResult, ModuleWorkflowError> {
+    tracing::info!("Starting module installation workflow for: {}", request.module_id);
+
+    // Step 1: Validate installation prerequisites
+    let validation_result = temporal_sdk::workflow::call_activity(
+        validate_module_installation,
+        ValidateInstallationRequest {
+            module_id: request.module_id.clone(),
+            tenant_id: request.tenant_id.clone(),
+            user_id: request.user_id.clone(),
         },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(30),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 3,
-                initial_interval: Duration::from_secs(1),
-                maximum_interval: Duration::from_secs(10),
-                backoff_coefficient: 2.0,
-            }),
-        },
-    ).await.map_err(|e| WorkflowError::InstallationWorkflowFailed(format!("Validation failed: {}", e)))?;
+    ).await?;
 
     if !validation_result.is_valid {
-        return Err(WorkflowError::InstallationWorkflowFailed(
-            format!("Module validation failed: {:?}", validation_result.errors)
-        ));
+        return Err(ModuleWorkflowError::ValidationFailed(validation_result.errors));
     }
 
-    let mut compensation_activities = Vec::new();
-
-    // Step 2: Download and verify module package
-    let download_result = call_activity(
-        ModuleActivities::download_module_package,
-        DownloadModulePackageRequest {
-            module_id: input.module_id.clone(),
-            version: input.version.clone(),
-            checksum: validation_result.expected_checksum,
+    // Step 2: Resolve and validate dependencies
+    let dependencies = temporal_sdk::workflow::call_activity(
+        resolve_module_dependencies,
+        ResolveDependenciesRequest {
+            module_id: request.module_id.clone(),
+            version: request.version.clone(),
+            tenant_id: request.tenant_id.clone(),
         },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(300), // 5 minutes for download
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 3,
-                initial_interval: Duration::from_secs(5),
-                maximum_interval: Duration::from_secs(30),
-                backoff_coefficient: 2.0,
-            }),
-        },
-    ).await.map_err(|e| WorkflowError::InstallationWorkflowFailed(format!("Download failed: {}", e)))?;
+    ).await?;
 
-    // Step 3: Security scan
-    let security_scan_result = call_activity(
-        ModuleActivities::perform_security_scan,
-        PerformSecurityScanRequest {
-            module_id: input.module_id.clone(),
-            version: input.version.clone(),
-            package_path: download_result.package_path.clone(),
-            deep_scan: true,
-        },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(600), // 10 minutes for security scan
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 2,
-                initial_interval: Duration::from_secs(10),
-                maximum_interval: Duration::from_secs(60),
-                backoff_coefficient: 2.0,
-            }),
-        },
-    ).await.map_err(|e| WorkflowError::InstallationWorkflowFailed(format!("Security scan failed: {}", e)))?;
-
-    if !security_scan_result.passed {
-        // Cleanup downloaded package
-        let _ = call_activity(
-            ModuleActivities::cleanup_package,
-            CleanupPackageRequest {
-                package_path: download_result.package_path,
-            },
-            ActivityOptions::default(),
-        ).await;
-
-        return Err(WorkflowError::InstallationWorkflowFailed(
-            format!("Security scan failed: {} vulnerabilities found", security_scan_result.vulnerabilities.len())
-        ));
-    }
-
-    // Step 4: Resolve and install dependencies
+    // Step 3: Install dependencies recursively
     let mut installed_dependencies = Vec::new();
-    for dependency in &validation_result.dependencies {
-        let dep_install_result = call_activity(
-            ModuleActivities::install_dependency,
-            InstallDependencyRequest {
-                dependency_id: dependency.id.clone(),
-                version_requirement: dependency.version_requirement.clone(),
-                tenant_id: input.tenant_id.clone(),
-                optional: dependency.optional,
-            },
-            ActivityOptions {
-                start_to_close_timeout: Duration::from_secs(180),
-                retry_policy: Some(RetryPolicy {
-                    maximum_attempts: 3,
-                    initial_interval: Duration::from_secs(2),
-                    maximum_interval: Duration::from_secs(20),
-                    backoff_coefficient: 2.0,
-                }),
-            },
-        ).await.map_err(|e| {
-            // Schedule compensation for already installed dependencies
-            for installed_dep in &installed_dependencies {
-                compensation_activities.push(CompensationActivity {
-                    activity_type: "uninstall_dependency".to_string(),
-                    input: serde_json::json!({
-                        "dependency_id": installed_dep,
-                        "tenant_id": input.tenant_id
-                    }),
-                });
-            }
-            WorkflowError::InstallationWorkflowFailed(format!("Dependency installation failed: {}", e))
-        })?;
-
-        if dep_install_result.installed {
-            installed_dependencies.push(dependency.id.clone());
+    for dependency in dependencies.dependencies {
+        if !dependency.already_installed {
+            let dep_result = temporal_sdk::workflow::call_child_workflow(
+                install_module_workflow,
+                InstallModuleRequest {
+                    module_id: dependency.module_id.clone(),
+                    version: Some(dependency.version),
+                    tenant_id: request.tenant_id.clone(),
+                    user_id: request.user_id.clone(),
+                    configuration: None,
+                    auto_activate: false,
+                },
+            ).await?;
+            installed_dependencies.push(dep_result.instance_id);
         }
     }
 
-    // Step 5: Extract and deploy module
-    let deployment_result = call_activity(
-        ModuleActivities::deploy_module,
-        DeployModuleRequest {
-            module_id: input.module_id.clone(),
-            version: input.version.clone(),
-            package_path: download_result.package_path.clone(),
-            tenant_id: input.tenant_id.clone(),
-            configuration: input.configuration.clone(),
-        },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(300),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 2,
-                initial_interval: Duration::from_secs(5),
-                maximum_interval: Duration::from_secs(30),
-                backoff_coefficient: 2.0,
-            }),
+    // Step 4: Download and validate module package
+    let package = temporal_sdk::workflow::call_activity(
+        download_module_package,
+        DownloadPackageRequest {
+            module_id: request.module_id.clone(),
+            version: request.version.clone(),
+            tenant_id: request.tenant_id.clone(),
         },
     ).await.map_err(|e| {
-        // Schedule compensation
-        compensation_activities.push(CompensationActivity {
-            activity_type: "cleanup_package".to_string(),
-            input: serde_json::json!({
-                "package_path": download_result.package_path
-            }),
-        });
-        
-        for installed_dep in &installed_dependencies {
-            compensation_activities.push(CompensationActivity {
-                activity_type: "uninstall_dependency".to_string(),
-                input: serde_json::json!({
-                    "dependency_id": installed_dep,
-                    "tenant_id": input.tenant_id
-                }),
-            });
-        }
-        
-        WorkflowError::InstallationWorkflowFailed(format!("Deployment failed: {}", e))
+        // Rollback installed dependencies on failure
+        temporal_sdk::workflow::spawn_child_workflow(
+            rollback_dependency_installations,
+            RollbackDependenciesRequest {
+                instance_ids: installed_dependencies.clone(),
+            },
+        );
+        e
     })?;
 
-    // Step 6: Configure sandbox
-    let sandbox_result = call_activity(
-        ModuleActivities::configure_sandbox,
-        ConfigureSandboxRequest {
-            module_id: input.module_id.clone(),
-            tenant_id: input.tenant_id.clone(),
-            resource_limits: validation_result.resource_limits,
-            security_policy: validation_result.security_policy,
+    // Step 5: Security scan
+    let security_scan = temporal_sdk::workflow::call_activity(
+        scan_module_security,
+        SecurityScanRequest {
+            package: package.clone(),
+            scan_level: SecurityScanLevel::Comprehensive,
         },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(60),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 3,
-                initial_interval: Duration::from_secs(1),
-                maximum_interval: Duration::from_secs(10),
-                backoff_coefficient: 2.0,
-            }),
+    ).await?;
+
+    if !security_scan.passed {
+        // Rollback on security failure
+        temporal_sdk::workflow::spawn_child_workflow(
+            rollback_dependency_installations,
+            RollbackDependenciesRequest {
+                instance_ids: installed_dependencies,
+            },
+        );
+        return Err(ModuleWorkflowError::SecurityScanFailed(security_scan.issues));
+    }
+
+    // Step 6: Create module instance
+    let instance = temporal_sdk::workflow::call_activity(
+        create_module_instance,
+        CreateInstanceRequest {
+            module_id: request.module_id.clone(),
+            tenant_id: request.tenant_id.clone(),
+            version: package.metadata.version.clone(),
+            configuration: request.configuration.clone(),
+        },
+    ).await?;
+
+    // Step 7: Deploy module to sandbox
+    let deployment = temporal_sdk::workflow::call_activity(
+        deploy_module_to_sandbox,
+        DeployToSandboxRequest {
+            instance_id: instance.id,
+            package: package.clone(),
+            sandbox_config: package.manifest.sandbox_config.clone(),
         },
     ).await.map_err(|e| {
-        // Schedule compensation
-        compensation_activities.push(CompensationActivity {
-            activity_type: "cleanup_deployment".to_string(),
-            input: serde_json::json!({
-                "deployment_id": deployment_result.deployment_id,
-                "tenant_id": input.tenant_id
-            }),
-        });
-        
-        WorkflowError::InstallationWorkflowFailed(format!("Sandbox configuration failed: {}", e))
+        // Rollback instance creation on deployment failure
+        temporal_sdk::workflow::spawn_activity(
+            cleanup_module_instance,
+            CleanupInstanceRequest {
+                instance_id: instance.id,
+                cleanup_data: true,
+            },
+        );
+        e
     })?;
 
-    // Step 7: Register module installation
-    let installation_result = call_activity(
-        ModuleActivities::register_installation,
-        RegisterInstallationRequest {
-            module_id: input.module_id.clone(),
-            version: input.version.clone(),
-            tenant_id: input.tenant_id.clone(),
-            user_id: input.user_id.clone(),
-            deployment_id: deployment_result.deployment_id.clone(),
-            configuration: input.configuration.clone(),
-            sandbox_config: sandbox_result.sandbox_config,
+    // Step 8: Initialize module
+    let initialization = temporal_sdk::workflow::call_activity(
+        initialize_module,
+        InitializeModuleRequest {
+            instance_id: instance.id,
+            configuration: request.configuration.unwrap_or_default(),
         },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(30),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 3,
-                initial_interval: Duration::from_secs(1),
-                maximum_interval: Duration::from_secs(10),
-                backoff_coefficient: 2.0,
-            }),
-        },
-    ).await.map_err(|e| WorkflowError::InstallationWorkflowFailed(format!("Registration failed: {}", e)))?;
+    ).await.map_err(|e| {
+        // Rollback deployment on initialization failure
+        temporal_sdk::workflow::spawn_activity(
+            cleanup_module_deployment,
+            CleanupDeploymentRequest {
+                instance_id: instance.id,
+                deployment_id: deployment.id,
+            },
+        );
+        e
+    })?;
 
-    // Step 8: Auto-activate if requested
-    let mut status = crate::types::ModuleStatus::Installed;
-    if input.auto_activate {
-        let activation_result = call_activity(
-            ModuleActivities::activate_module,
+    // Step 9: Register module extensions
+    temporal_sdk::workflow::call_activity(
+        register_module_extensions,
+        RegisterExtensionsRequest {
+            instance_id: instance.id,
+            extensions: package.manifest.capabilities.clone(),
+        },
+    ).await?;
+
+    // Step 10: Auto-activate if requested
+    if request.auto_activate {
+        temporal_sdk::workflow::call_activity(
+            activate_module,
             ActivateModuleRequest {
-                installation_id: installation_result.installation_id.clone(),
-                module_id: input.module_id.clone(),
-                tenant_id: input.tenant_id.clone(),
+                instance_id: instance.id,
             },
-            ActivityOptions {
-                start_to_close_timeout: Duration::from_secs(120),
-                retry_policy: Some(RetryPolicy {
-                    maximum_attempts: 2,
-                    initial_interval: Duration::from_secs(2),
-                    maximum_interval: Duration::from_secs(20),
-                    backoff_coefficient: 2.0,
-                }),
-            },
-        ).await.map_err(|e| WorkflowError::InstallationWorkflowFailed(format!("Activation failed: {}", e)))?;
-
-        if activation_result.activated {
-            status = crate::types::ModuleStatus::Active;
-        }
+        ).await?;
     }
 
-    // Step 9: Cleanup temporary files
-    let _ = call_activity(
-        ModuleActivities::cleanup_package,
-        CleanupPackageRequest {
-            package_path: download_result.package_path,
+    // Step 11: Start monitoring
+    temporal_sdk::workflow::call_activity(
+        start_module_monitoring,
+        StartMonitoringRequest {
+            instance_id: instance.id,
         },
-        ActivityOptions::default(),
-    ).await;
+    ).await?;
 
-    Ok(InstallModuleWorkflowOutput {
-        installation_id: installation_result.installation_id,
-        module_id: input.module_id,
-        version: input.version,
-        status,
-        dependencies_installed: installed_dependencies,
-        configuration_applied: input.configuration.is_some(),
-        sandbox_configured: true,
+    // Step 12: Send installation notification
+    temporal_sdk::workflow::call_activity(
+        send_installation_notification,
+        InstallationNotificationRequest {
+            module_id: request.module_id.clone(),
+            instance_id: instance.id,
+            tenant_id: request.tenant_id.clone(),
+            user_id: request.user_id.clone(),
+            status: "completed".to_string(),
+        },
+    ).await?;
+
+    tracing::info!("Successfully completed module installation workflow for: {}", request.module_id);
+
+    Ok(InstallModuleResult {
+        instance_id: instance.id,
+        module_id: request.module_id,
+        version: package.metadata.version,
+        status: if request.auto_activate { 
+            ModuleStatus::Active 
+        } else { 
+            ModuleStatus::Installed 
+        },
+        installation_path: deployment.path,
     })
 }
 
-/// Module Update Workflow
-/// Handles module updates with backup and rollback capabilities
+/// Module update workflow with rollback capabilities
+#[temporal_sdk::workflow]
 pub async fn update_module_workflow(
-    input: UpdateModuleWorkflowInput,
-) -> Result<UpdateModuleWorkflowOutput, WorkflowError> {
-    let workflow_id = format!("update-module-{}-{}", input.module_id, Uuid::new_v4());
-    
-    // Step 1: Validate update request
-    let validation_result = call_activity(
-        ModuleActivities::validate_module_update,
-        ValidateModuleUpdateRequest {
-            module_id: input.module_id.clone(),
-            current_version: "".to_string(), // Would be fetched from database
-            target_version: input.target_version.clone(),
-            tenant_id: input.tenant_id.clone(),
+    request: UpdateModuleRequest,
+) -> Result<UpdateModuleResult, ModuleWorkflowError> {
+    tracing::info!("Starting module update workflow for: {}", request.instance_id);
+
+    // Step 1: Get current module instance
+    let current_instance = temporal_sdk::workflow::call_activity(
+        get_module_instance,
+        GetInstanceRequest {
+            instance_id: request.instance_id,
         },
-        ActivityOptions::default(),
-    ).await.map_err(|e| WorkflowError::UpdateWorkflowFailed(format!("Validation failed: {}", e)))?;
+    ).await?;
 
-    let mut backup_id = None;
+    // Step 2: Determine target version
+    let target_version = match request.target_version {
+        Some(version) => version,
+        None => {
+            let latest = temporal_sdk::workflow::call_activity(
+                get_latest_module_version,
+                GetLatestVersionRequest {
+                    module_id: current_instance.module_id.clone(),
+                },
+            ).await?;
+            latest.version
+        }
+    };
 
-    // Step 2: Create backup if requested
-    if input.backup_current {
-        let backup_result = call_activity(
-            ModuleActivities::backup_module,
-            BackupModuleRequest {
-                module_id: input.module_id.clone(),
-                tenant_id: input.tenant_id.clone(),
-                backup_type: "pre_update".to_string(),
-            },
-            ActivityOptions {
-                start_to_close_timeout: Duration::from_secs(300),
-                retry_policy: Some(RetryPolicy {
-                    maximum_attempts: 2,
-                    initial_interval: Duration::from_secs(5),
-                    maximum_interval: Duration::from_secs(30),
-                    backoff_coefficient: 2.0,
-                }),
-            },
-        ).await.map_err(|e| WorkflowError::UpdateWorkflowFailed(format!("Backup failed: {}", e)))?;
+    // Step 3: Validate update compatibility
+    let compatibility = temporal_sdk::workflow::call_activity(
+        validate_module_update,
+        ValidateUpdateRequest {
+            current_instance: current_instance.clone(),
+            target_version: target_version.clone(),
+        },
+    ).await?;
 
-        backup_id = Some(backup_result.backup_id);
+    if !compatibility.is_compatible {
+        return Err(ModuleWorkflowError::IncompatibleUpdate(compatibility.issues));
     }
 
-    // Step 3: Download new version
-    let download_result = call_activity(
-        ModuleActivities::download_module_package,
-        DownloadModulePackageRequest {
-            module_id: input.module_id.clone(),
-            version: input.target_version.clone(),
-            checksum: validation_result.expected_checksum,
-        },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(300),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 3,
-                initial_interval: Duration::from_secs(5),
-                maximum_interval: Duration::from_secs(30),
-                backoff_coefficient: 2.0,
-            }),
-        },
-    ).await.map_err(|e| WorkflowError::UpdateWorkflowFailed(format!("Download failed: {}", e)))?;
+    // Step 4: Create backup if requested
+    let backup_id = if request.backup_current {
+        Some(temporal_sdk::workflow::call_activity(
+            create_module_backup,
+            CreateBackupRequest {
+                instance_id: request.instance_id,
+                backup_type: BackupType::Full,
+            },
+        ).await?.backup_id)
+    } else {
+        None
+    };
 
-    // Step 4: Perform update with rollback capability
-    let update_result = call_activity(
-        ModuleActivities::perform_module_update,
-        PerformModuleUpdateRequest {
-            module_id: input.module_id.clone(),
-            target_version: input.target_version.clone(),
-            package_path: download_result.package_path.clone(),
-            tenant_id: input.tenant_id.clone(),
-            migration_scripts: validation_result.migration_scripts,
+    // Step 5: Download new version
+    let new_package = temporal_sdk::workflow::call_activity(
+        download_module_package,
+        DownloadPackageRequest {
+            module_id: current_instance.module_id.clone(),
+            version: Some(target_version.clone()),
+            tenant_id: current_instance.tenant_id.clone(),
         },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(600),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 1, // No retry for updates to avoid inconsistent state
-                initial_interval: Duration::from_secs(1),
-                maximum_interval: Duration::from_secs(1),
-                backoff_coefficient: 1.0,
-            }),
+    ).await?;
+
+    // Step 6: Security scan new version
+    let security_scan = temporal_sdk::workflow::call_activity(
+        scan_module_security,
+        SecurityScanRequest {
+            package: new_package.clone(),
+            scan_level: SecurityScanLevel::Update,
+        },
+    ).await?;
+
+    if !security_scan.passed {
+        return Err(ModuleWorkflowError::SecurityScanFailed(security_scan.issues));
+    }
+
+    // Step 7: Deactivate current module if active
+    let was_active = matches!(current_instance.status, ModuleStatus::Active);
+    if was_active {
+        temporal_sdk::workflow::call_activity(
+            deactivate_module,
+            DeactivateModuleRequest {
+                instance_id: request.instance_id,
+            },
+        ).await?;
+    }
+
+    // Step 8: Update module deployment
+    let update_result = temporal_sdk::workflow::call_activity(
+        update_module_deployment,
+        UpdateDeploymentRequest {
+            instance_id: request.instance_id,
+            new_package: new_package.clone(),
+            preserve_config: request.preserve_config,
         },
     ).await.map_err(|e| {
-        // If rollback is enabled and we have a backup, initiate rollback
-        if input.rollback_on_failure && backup_id.is_some() {
-            let _ = spawn_child_workflow(
-                rollback_module_workflow,
-                RollbackModuleWorkflowInput {
-                    module_id: input.module_id.clone(),
-                    tenant_id: input.tenant_id.clone(),
-                    backup_id: backup_id.unwrap(),
+        // Restore from backup on failure
+        if let Some(backup_id) = &backup_id {
+            temporal_sdk::workflow::spawn_activity(
+                restore_module_from_backup,
+                RestoreFromBackupRequest {
+                    instance_id: request.instance_id,
+                    backup_id: backup_id.clone(),
                 },
             );
         }
-        WorkflowError::UpdateWorkflowFailed(format!("Update failed: {}", e))
+        e
     })?;
 
-    // Step 5: Cleanup
-    let _ = call_activity(
-        ModuleActivities::cleanup_package,
-        CleanupPackageRequest {
-            package_path: download_result.package_path,
+    // Step 9: Update module instance record
+    temporal_sdk::workflow::call_activity(
+        update_module_instance,
+        UpdateInstanceRequest {
+            instance_id: request.instance_id,
+            version: target_version.clone(),
+            status: ModuleStatus::Installed,
         },
-        ActivityOptions::default(),
-    ).await;
+    ).await?;
 
-    Ok(UpdateModuleWorkflowOutput {
-        update_id: Uuid::new_v4().to_string(),
-        module_id: input.module_id,
-        from_version: validation_result.current_version,
-        to_version: input.target_version,
-        status: crate::types::ModuleStatus::Active,
+    // Step 10: Reactivate if it was active before
+    if was_active {
+        temporal_sdk::workflow::call_activity(
+            activate_module,
+            ActivateModuleRequest {
+                instance_id: request.instance_id,
+            },
+        ).await.map_err(|e| {
+            // Restore from backup on activation failure
+            if let Some(backup_id) = &backup_id {
+                temporal_sdk::workflow::spawn_activity(
+                    restore_module_from_backup,
+                    RestoreFromBackupRequest {
+                        instance_id: request.instance_id,
+                        backup_id: backup_id.clone(),
+                    },
+                );
+            }
+            e
+        })?;
+    }
+
+    // Step 11: Send update notification
+    temporal_sdk::workflow::call_activity(
+        send_update_notification,
+        UpdateNotificationRequest {
+            instance_id: request.instance_id,
+            old_version: current_instance.version.clone(),
+            new_version: target_version.clone(),
+            tenant_id: current_instance.tenant_id.clone(),
+        },
+    ).await?;
+
+    tracing::info!("Successfully completed module update workflow for: {}", request.instance_id);
+
+    Ok(UpdateModuleResult {
+        instance_id: request.instance_id,
+        old_version: current_instance.version,
+        new_version: target_version,
         backup_id,
-        migration_applied: update_result.migration_applied,
+        status: if was_active { ModuleStatus::Active } else { ModuleStatus::Installed },
     })
 }
 
-/// Module Uninstallation Workflow
-/// Handles complete module removal with data cleanup
+/// Module uninstallation workflow with cleanup
+#[temporal_sdk::workflow]
 pub async fn uninstall_module_workflow(
-    input: UninstallModuleWorkflowInput,
-) -> Result<UninstallModuleWorkflowOutput, WorkflowError> {
-    let workflow_id = format!("uninstall-module-{}-{}", input.module_id, Uuid::new_v4());
-    
-    // Step 1: Validate uninstallation
-    let validation_result = call_activity(
-        ModuleActivities::validate_module_uninstallation,
-        ValidateModuleUninstallationRequest {
-            module_id: input.module_id.clone(),
-            tenant_id: input.tenant_id.clone(),
-            force_uninstall: input.force_uninstall,
-        },
-        ActivityOptions::default(),
-    ).await.map_err(|e| WorkflowError::UninstallationWorkflowFailed(format!("Validation failed: {}", e)))?;
+    request: UninstallModuleRequest,
+) -> Result<UninstallModuleResult, ModuleWorkflowError> {
+    tracing::info!("Starting module uninstallation workflow for: {}", request.instance_id);
 
-    // Step 2: Deactivate module if active
-    if validation_result.is_active {
-        let _ = call_activity(
-            ModuleActivities::deactivate_module,
+    // Step 1: Get module instance
+    let instance = temporal_sdk::workflow::call_activity(
+        get_module_instance,
+        GetInstanceRequest {
+            instance_id: request.instance_id,
+        },
+    ).await?;
+
+    // Step 2: Check for dependent modules
+    let dependents = temporal_sdk::workflow::call_activity(
+        check_module_dependents,
+        CheckDependentsRequest {
+            module_id: instance.module_id.clone(),
+            tenant_id: instance.tenant_id.clone(),
+        },
+    ).await?;
+
+    if !dependents.dependents.is_empty() {
+        return Err(ModuleWorkflowError::HasDependents(dependents.dependents));
+    }
+
+    // Step 3: Create backup if requested
+    let backup_id = if request.backup_data {
+        Some(temporal_sdk::workflow::call_activity(
+            create_module_backup,
+            CreateBackupRequest {
+                instance_id: request.instance_id,
+                backup_type: BackupType::DataOnly,
+            },
+        ).await?.backup_id)
+    } else {
+        None
+    };
+
+    // Step 4: Deactivate module if active
+    if matches!(instance.status, ModuleStatus::Active) {
+        temporal_sdk::workflow::call_activity(
+            deactivate_module,
             DeactivateModuleRequest {
-                module_id: input.module_id.clone(),
-                tenant_id: input.tenant_id.clone(),
+                instance_id: request.instance_id,
             },
-            ActivityOptions {
-                start_to_close_timeout: Duration::from_secs(120),
-                retry_policy: Some(RetryPolicy {
-                    maximum_attempts: 2,
-                    initial_interval: Duration::from_secs(2),
-                    maximum_interval: Duration::from_secs(20),
-                    backoff_coefficient: 2.0,
-                }),
-            },
-        ).await;
+        ).await?;
     }
 
-    // Step 3: Clean up module data if requested
-    let mut data_cleaned = false;
-    if input.cleanup_data {
-        let cleanup_result = call_activity(
-            ModuleActivities::cleanup_module_data,
-            CleanupModuleDataRequest {
-                module_id: input.module_id.clone(),
-                tenant_id: input.tenant_id.clone(),
-                cleanup_type: "complete".to_string(),
-            },
-            ActivityOptions {
-                start_to_close_timeout: Duration::from_secs(300),
-                retry_policy: Some(RetryPolicy {
-                    maximum_attempts: 2,
-                    initial_interval: Duration::from_secs(5),
-                    maximum_interval: Duration::from_secs(30),
-                    backoff_coefficient: 2.0,
-                }),
-            },
-        ).await.map_err(|e| WorkflowError::UninstallationWorkflowFailed(format!("Data cleanup failed: {}", e)))?;
-
-        data_cleaned = cleanup_result.cleaned;
-    }
-
-    // Step 4: Remove module files and configuration
-    let removal_result = call_activity(
-        ModuleActivities::remove_module_installation,
-        RemoveModuleInstallationRequest {
-            module_id: input.module_id.clone(),
-            tenant_id: input.tenant_id.clone(),
-            remove_dependencies: true,
+    // Step 5: Unregister module extensions
+    temporal_sdk::workflow::call_activity(
+        unregister_module_extensions,
+        UnregisterExtensionsRequest {
+            instance_id: request.instance_id,
         },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(180),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 2,
-                initial_interval: Duration::from_secs(2),
-                maximum_interval: Duration::from_secs(20),
-                backoff_coefficient: 2.0,
-            }),
-        },
-    ).await.map_err(|e| WorkflowError::UninstallationWorkflowFailed(format!("Removal failed: {}", e)))?;
+    ).await?;
 
-    // Step 5: Update installation record
-    let _ = call_activity(
-        ModuleActivities::update_installation_status,
-        UpdateInstallationStatusRequest {
-            module_id: input.module_id.clone(),
-            tenant_id: input.tenant_id.clone(),
-            status: crate::types::ModuleStatus::Failed, // Uninstalled
+    // Step 6: Stop monitoring
+    temporal_sdk::workflow::call_activity(
+        stop_module_monitoring,
+        StopMonitoringRequest {
+            instance_id: request.instance_id,
         },
-        ActivityOptions::default(),
-    ).await;
+    ).await?;
 
-    Ok(UninstallModuleWorkflowOutput {
-        uninstallation_id: Uuid::new_v4().to_string(),
-        module_id: input.module_id,
-        status: crate::types::ModuleStatus::Failed, // Represents uninstalled
-        data_cleaned,
-        dependencies_removed: removal_result.dependencies_removed,
+    // Step 7: Cleanup module resources
+    let cleanup_summary = temporal_sdk::workflow::call_activity(
+        cleanup_module_resources,
+        CleanupResourcesRequest {
+            instance_id: request.instance_id,
+            cleanup_data: request.cleanup_data,
+        },
+    ).await?;
+
+    // Step 8: Remove module deployment
+    temporal_sdk::workflow::call_activity(
+        remove_module_deployment,
+        RemoveDeploymentRequest {
+            instance_id: request.instance_id,
+        },
+    ).await?;
+
+    // Step 9: Delete module instance record
+    temporal_sdk::workflow::call_activity(
+        delete_module_instance,
+        DeleteInstanceRequest {
+            instance_id: request.instance_id,
+        },
+    ).await?;
+
+    // Step 10: Send uninstallation notification
+    temporal_sdk::workflow::call_activity(
+        send_uninstallation_notification,
+        UninstallationNotificationRequest {
+            module_id: instance.module_id.clone(),
+            instance_id: request.instance_id,
+            tenant_id: instance.tenant_id.clone(),
+            cleanup_summary: cleanup_summary.clone(),
+        },
+    ).await?;
+
+    tracing::info!("Successfully completed module uninstallation workflow for: {}", request.instance_id);
+
+    Ok(UninstallModuleResult {
+        instance_id: request.instance_id,
+        backup_id,
+        cleanup_summary,
     })
 }
 
-/// Marketplace Sync Workflow
-/// Synchronizes modules with the marketplace
-pub async fn marketplace_sync_workflow(
-    input: MarketplaceSyncWorkflowInput,
-) -> Result<MarketplaceSyncWorkflowOutput, WorkflowError> {
-    let workflow_id = format!("marketplace-sync-{}", Uuid::new_v4());
-    
-    // Step 1: Fetch marketplace data
-    let marketplace_data = call_activity(
-        ModuleActivities::fetch_marketplace_data,
-        FetchMarketplaceDataRequest {
-            sync_type: input.sync_type.clone(),
-            module_ids: input.module_ids.clone(),
-            force_update: input.force_update,
+/// Module marketplace sync workflow
+#[temporal_sdk::workflow]
+pub async fn sync_marketplace_workflow() -> Result<MarketplaceSyncResult, ModuleWorkflowError> {
+    tracing::info!("Starting marketplace sync workflow");
+
+    // Step 1: Fetch latest module registry
+    let registry = temporal_sdk::workflow::call_activity(
+        fetch_marketplace_registry,
+        FetchRegistryRequest {
+            last_sync: None, // Get full registry
         },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(300),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 3,
-                initial_interval: Duration::from_secs(5),
-                maximum_interval: Duration::from_secs(30),
-                backoff_coefficient: 2.0,
-            }),
+    ).await?;
+
+    // Step 2: Update local module catalog
+    temporal_sdk::workflow::call_activity(
+        update_module_catalog,
+        UpdateCatalogRequest {
+            modules: registry.modules,
+            categories: registry.categories,
         },
-    ).await.map_err(|e| WorkflowError::MarketplaceSyncFailed(format!("Fetch failed: {}", e)))?;
+    ).await?;
 
-    // Step 2: Process updates
-    let mut modules_synced = 0;
-    let mut modules_updated = 0;
-    let mut modules_added = 0;
-    let mut modules_removed = 0;
-    let mut errors = Vec::new();
+    // Step 3: Check for module updates
+    let update_checks = temporal_sdk::workflow::call_activity(
+        check_module_updates,
+        CheckUpdatesRequest {
+            installed_modules: registry.installed_modules,
+        },
+    ).await?;
 
-    for module_data in marketplace_data.modules {
-        let sync_result = call_activity(
-            ModuleActivities::sync_module_data,
-            SyncModuleDataRequest {
-                module_data: module_data.clone(),
-                force_update: input.force_update,
+    // Step 4: Send update notifications
+    if !update_checks.available_updates.is_empty() {
+        temporal_sdk::workflow::call_activity(
+            send_update_notifications,
+            UpdateNotificationsRequest {
+                updates: update_checks.available_updates,
             },
-            ActivityOptions {
-                start_to_close_timeout: Duration::from_secs(60),
-                retry_policy: Some(RetryPolicy {
-                    maximum_attempts: 2,
-                    initial_interval: Duration::from_secs(2),
-                    maximum_interval: Duration::from_secs(10),
-                    backoff_coefficient: 2.0,
-                }),
-            },
-        ).await;
+        ).await?;
+    }
 
-        match sync_result {
-            Ok(result) => {
-                modules_synced += 1;
-                match result.action {
-                    SyncAction::Updated => modules_updated += 1,
-                    SyncAction::Added => modules_added += 1,
-                    SyncAction::Removed => modules_removed += 1,
-                    SyncAction::NoChange => {},
-                }
-            }
-            Err(e) => {
-                errors.push(format!("Module {}: {}", module_data.id, e));
-            }
+    tracing::info!("Successfully completed marketplace sync workflow");
+
+    Ok(MarketplaceSyncResult {
+        modules_synced: registry.modules.len() as u32,
+        updates_available: update_checks.available_updates.len() as u32,
+        sync_completed_at: Utc::now(),
+    })
+}
+
+/// Rollback workflow for failed installations
+#[temporal_sdk::workflow]
+pub async fn rollback_dependency_installations(
+    request: RollbackDependenciesRequest,
+) -> Result<(), ModuleWorkflowError> {
+    tracing::info!("Starting dependency rollback workflow");
+
+    for instance_id in request.instance_ids {
+        // Attempt to uninstall each dependency
+        let uninstall_request = UninstallModuleRequest {
+            instance_id,
+            cleanup_data: true,
+            backup_data: false,
+        };
+
+        if let Err(e) = temporal_sdk::workflow::call_child_workflow(
+            uninstall_module_workflow,
+            uninstall_request,
+        ).await {
+            tracing::warn!("Failed to rollback dependency {}: {}", instance_id, e);
         }
     }
 
-    Ok(MarketplaceSyncWorkflowOutput {
-        sync_id: Uuid::new_v4().to_string(),
-        modules_synced,
-        modules_updated,
-        modules_added,
-        modules_removed,
-        errors,
-    })
-}
-
-/// Security Scan Workflow
-/// Performs comprehensive security scanning of modules
-pub async fn security_scan_workflow(
-    input: SecurityScanWorkflowInput,
-) -> Result<SecurityScanWorkflowOutput, WorkflowError> {
-    let workflow_id = format!("security-scan-{}-{}", input.module_id, Uuid::new_v4());
-    
-    // Step 1: Download module for scanning
-    let download_result = call_activity(
-        ModuleActivities::download_module_for_scan,
-        DownloadModuleForScanRequest {
-            module_id: input.module_id.clone(),
-            version: input.version.clone(),
-        },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(300),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 3,
-                initial_interval: Duration::from_secs(5),
-                maximum_interval: Duration::from_secs(30),
-                backoff_coefficient: 2.0,
-            }),
-        },
-    ).await.map_err(|e| WorkflowError::SecurityScanWorkflowFailed(format!("Download failed: {}", e)))?;
-
-    // Step 2: Perform security scan
-    let scan_result = call_activity(
-        ModuleActivities::perform_security_scan,
-        PerformSecurityScanRequest {
-            module_id: input.module_id.clone(),
-            version: input.version.clone(),
-            package_path: download_result.package_path.clone(),
-            deep_scan: input.deep_scan,
-        },
-        ActivityOptions {
-            start_to_close_timeout: Duration::from_secs(600),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 2,
-                initial_interval: Duration::from_secs(10),
-                maximum_interval: Duration::from_secs(60),
-                backoff_coefficient: 2.0,
-            }),
-        },
-    ).await.map_err(|e| WorkflowError::SecurityScanWorkflowFailed(format!("Scan failed: {}", e)))?;
-
-    // Step 3: Store scan results
-    let _ = call_activity(
-        ModuleActivities::store_scan_results,
-        StoreScanResultsRequest {
-            module_id: input.module_id.clone(),
-            version: input.version.clone(),
-            scan_type: input.scan_type.clone(),
-            scan_results: scan_result.clone(),
-        },
-        ActivityOptions::default(),
-    ).await;
-
-    // Step 4: Cleanup
-    let _ = call_activity(
-        ModuleActivities::cleanup_package,
-        CleanupPackageRequest {
-            package_path: download_result.package_path,
-        },
-        ActivityOptions::default(),
-    ).await;
-
-    Ok(SecurityScanWorkflowOutput {
-        scan_id: Uuid::new_v4().to_string(),
-        module_id: input.module_id,
-        version: input.version,
-        passed: scan_result.passed,
-        score: scan_result.score,
-        vulnerabilities_count: scan_result.vulnerabilities.len() as u32,
-        scan_duration_seconds: scan_result.scan_duration_seconds,
-    })
-}
-
-// Helper types and functions for workflow activities
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActivityOptions {
-    pub start_to_close_timeout: Duration,
-    pub retry_policy: Option<RetryPolicy>,
-}
-
-impl Default for ActivityOptions {
-    fn default() -> Self {
-        Self {
-            start_to_close_timeout: Duration::from_secs(60),
-            retry_policy: Some(RetryPolicy {
-                maximum_attempts: 3,
-                initial_interval: Duration::from_secs(1),
-                maximum_interval: Duration::from_secs(10),
-                backoff_coefficient: 2.0,
-            }),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RetryPolicy {
-    pub maximum_attempts: u32,
-    pub initial_interval: Duration,
-    pub maximum_interval: Duration,
-    pub backoff_coefficient: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompensationActivity {
-    pub activity_type: String,
-    pub input: serde_json::Value,
-}
-
-// Placeholder functions for Temporal SDK integration
-async fn call_activity<I, O>(
-    activity: fn(I) -> Result<O, ActivityError>,
-    input: I,
-    options: ActivityOptions,
-) -> Result<O, ActivityError> {
-    // In production, this would use the actual Temporal SDK
-    // For now, we'll simulate the activity call
-    activity(input)
-}
-
-async fn spawn_child_workflow<I, O>(
-    workflow: fn(I) -> Result<O, WorkflowError>,
-    input: I,
-) -> Result<(), WorkflowError> {
-    // In production, this would spawn a child workflow
-    // For now, we'll simulate it
-    let _ = workflow(input)?;
     Ok(())
 }
 
-// Request/Response types for activities (these would be defined in activities.rs)
+// Workflow error types
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateModuleInstallationRequest {
+pub enum ModuleWorkflowError {
+    ValidationFailed(Vec<String>),
+    SecurityScanFailed(Vec<String>),
+    IncompatibleUpdate(Vec<String>),
+    HasDependents(Vec<String>),
+    ActivityFailed(String),
+    ChildWorkflowFailed(String),
+    Timeout(String),
+    Cancelled(String),
+}
+
+impl std::fmt::Display for ModuleWorkflowError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ModuleWorkflowError::ValidationFailed(errors) => {
+                write!(f, "Validation failed: {}", errors.join(", "))
+            }
+            ModuleWorkflowError::SecurityScanFailed(issues) => {
+                write!(f, "Security scan failed: {}", issues.join(", "))
+            }
+            ModuleWorkflowError::IncompatibleUpdate(issues) => {
+                write!(f, "Incompatible update: {}", issues.join(", "))
+            }
+            ModuleWorkflowError::HasDependents(dependents) => {
+                write!(f, "Module has dependents: {}", dependents.join(", "))
+            }
+            ModuleWorkflowError::ActivityFailed(msg) => write!(f, "Activity failed: {}", msg),
+            ModuleWorkflowError::ChildWorkflowFailed(msg) => write!(f, "Child workflow failed: {}", msg),
+            ModuleWorkflowError::Timeout(msg) => write!(f, "Workflow timeout: {}", msg),
+            ModuleWorkflowError::Cancelled(msg) => write!(f, "Workflow cancelled: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for ModuleWorkflowError {}
+
+// Workflow request/response types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidateInstallationRequest {
     pub module_id: String,
-    pub version: String,
     pub tenant_id: String,
     pub user_id: String,
-    pub force_reinstall: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateModuleInstallationResponse {
+pub struct ValidationResult {
     pub is_valid: bool,
     pub errors: Vec<String>,
-    pub expected_checksum: String,
-    pub dependencies: Vec<ModuleDependency>,
-    pub resource_limits: crate::types::ResourceLimits,
-    pub security_policy: crate::types::SecurityPolicy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModuleDependency {
-    pub id: String,
-    pub version_requirement: String,
-    pub optional: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadModulePackageRequest {
+pub struct ResolveDependenciesRequest {
     pub module_id: String,
-    pub version: String,
-    pub checksum: String,
+    pub version: Option<Version>,
+    pub tenant_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadModulePackageResponse {
-    pub package_path: String,
-    pub verified: bool,
+pub struct DependencyResolutionResult {
+    pub dependencies: Vec<ResolvedDependency>,
 }
 
-// Additional request/response types would be defined here...
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedDependency {
+    pub module_id: String,
+    pub version: Version,
+    pub already_installed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadPackageRequest {
+    pub module_id: String,
+    pub version: Option<Version>,
+    pub tenant_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityScanRequest {
+    pub package: ModulePackage,
+    pub scan_level: SecurityScanLevel,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SecurityScanLevel {
+    Basic,
+    Standard,
+    Comprehensive,
+    Update,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityScanResponse {
+    pub passed: bool,
+    pub issues: Vec<String>,
+    pub scan_result: SecurityScanResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateInstanceRequest {
+    pub module_id: String,
+    pub tenant_id: String,
+    pub version: Version,
+    pub configuration: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeployToSandboxRequest {
+    pub instance_id: Uuid,
+    pub package: ModulePackage,
+    pub sandbox_config: crate::SandboxConfiguration,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeploymentResult {
+    pub id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InitializeModuleRequest {
+    pub instance_id: Uuid,
+    pub configuration: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterExtensionsRequest {
+    pub instance_id: Uuid,
+    pub extensions: crate::ModuleCapabilities,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivateModuleRequest {
+    pub instance_id: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StartMonitoringRequest {
+    pub instance_id: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallationNotificationRequest {
+    pub module_id: String,
+    pub instance_id: Uuid,
+    pub tenant_id: String,
+    pub user_id: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RollbackDependenciesRequest {
+    pub instance_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarketplaceSyncResult {
+    pub modules_synced: u32,
+    pub updates_available: u32,
+    pub sync_completed_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FetchRegistryRequest {
+    pub last_sync: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarketplaceRegistry {
+    pub modules: Vec<crate::ModuleMetadata>,
+    pub categories: Vec<crate::ModuleCategory>,
+    pub installed_modules: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCatalogRequest {
+    pub modules: Vec<crate::ModuleMetadata>,
+    pub categories: Vec<crate::ModuleCategory>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CheckUpdatesRequest {
+    pub installed_modules: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCheckResult {
+    pub available_updates: Vec<ModuleUpdate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleUpdate {
+    pub instance_id: Uuid,
+    pub current_version: Version,
+    pub latest_version: Version,
+    pub update_type: UpdateType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum UpdateType {
+    Patch,
+    Minor,
+    Major,
+    Security,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateNotificationsRequest {
+    pub updates: Vec<ModuleUpdate>,
+}
+
+// Additional request/response types for other activities would be defined here...

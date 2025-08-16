@@ -1,766 +1,720 @@
 use async_trait::async_trait;
-use std::collections::HashMap;
-use std::path::Path;
-use std::time::Instant;
+use std::sync::Arc;
 use uuid::Uuid;
+use tracing::{info, warn, error};
 
-use crate::error::{ActivityError, ModuleServiceError};
-use crate::repositories::{ModuleRepository, InstallationRepository, SecurityRepository};
-use crate::services::{PackageService, SecurityService, SandboxService, MarketplaceService};
-use crate::types::{ModuleStatus, SecurityScanResults, SecurityVulnerability, VulnerabilitySeverity};
+use crate::{
+    ModuleResult, ModuleError, ModuleRepository, ModuleSandbox, ModuleSecurityScanner,
+    ModuleMarketplace, ModulePackage, ModuleInstance, ModuleStatus, SecurityScanResult,
+    workflows::*,
+};
 
-// Activity trait definitions
-#[async_trait]
-pub trait ModuleActivities {
-    // Installation activities
-    async fn validate_module_installation(&self, request: ValidateModuleInstallationRequest) -> Result<ValidateModuleInstallationResponse, ActivityError>;
-    async fn download_module_package(&self, request: DownloadModulePackageRequest) -> Result<DownloadModulePackageResponse, ActivityError>;
-    async fn perform_security_scan(&self, request: PerformSecurityScanRequest) -> Result<PerformSecurityScanResponse, ActivityError>;
-    async fn install_dependency(&self, request: InstallDependencyRequest) -> Result<InstallDependencyResponse, ActivityError>;
-    async fn deploy_module(&self, request: DeployModuleRequest) -> Result<DeployModuleResponse, ActivityError>;
-    async fn configure_sandbox(&self, request: ConfigureSandboxRequest) -> Result<ConfigureSandboxResponse, ActivityError>;
-    async fn register_installation(&self, request: RegisterInstallationRequest) -> Result<RegisterInstallationResponse, ActivityError>;
-    async fn activate_module(&self, request: ActivateModuleRequest) -> Result<ActivateModuleResponse, ActivityError>;
-    async fn cleanup_package(&self, request: CleanupPackageRequest) -> Result<(), ActivityError>;
-
-    // Update activities
-    async fn validate_module_update(&self, request: ValidateModuleUpdateRequest) -> Result<ValidateModuleUpdateResponse, ActivityError>;
-    async fn backup_module(&self, request: BackupModuleRequest) -> Result<BackupModuleResponse, ActivityError>;
-    async fn perform_module_update(&self, request: PerformModuleUpdateRequest) -> Result<PerformModuleUpdateResponse, ActivityError>;
-
-    // Uninstallation activities
-    async fn validate_module_uninstallation(&self, request: ValidateModuleUninstallationRequest) -> Result<ValidateModuleUninstallationResponse, ActivityError>;
-    async fn deactivate_module(&self, request: DeactivateModuleRequest) -> Result<DeactivateModuleResponse, ActivityError>;
-    async fn cleanup_module_data(&self, request: CleanupModuleDataRequest) -> Result<CleanupModuleDataResponse, ActivityError>;
-    async fn remove_module_installation(&self, request: RemoveModuleInstallationRequest) -> Result<RemoveModuleInstallationResponse, ActivityError>;
-    async fn update_installation_status(&self, request: UpdateInstallationStatusRequest) -> Result<(), ActivityError>;
-
-    // Marketplace activities
-    async fn fetch_marketplace_data(&self, request: FetchMarketplaceDataRequest) -> Result<FetchMarketplaceDataResponse, ActivityError>;
-    async fn sync_module_data(&self, request: SyncModuleDataRequest) -> Result<SyncModuleDataResponse, ActivityError>;
-
-    // Security activities
-    async fn download_module_for_scan(&self, request: DownloadModuleForScanRequest) -> Result<DownloadModuleForScanResponse, ActivityError>;
-    async fn store_scan_results(&self, request: StoreScanResultsRequest) -> Result<(), ActivityError>;
+/// Module activities implementation for Temporal workflows
+pub struct ModuleActivities {
+    repository: Arc<dyn ModuleRepository>,
+    marketplace: Arc<dyn ModuleMarketplace>,
+    sandbox: Arc<dyn ModuleSandbox>,
+    security_scanner: Arc<dyn ModuleSecurityScanner>,
+    dependency_resolver: Arc<DependencyResolver>,
+    notification_service: Arc<NotificationService>,
 }
 
-// Implementation of module activities
-pub struct ModuleActivitiesImpl {
-    module_repo: ModuleRepository,
-    installation_repo: InstallationRepository,
-    security_repo: SecurityRepository,
-    package_service: PackageService,
-    security_service: SecurityService,
-    sandbox_service: SandboxService,
-    marketplace_service: MarketplaceService,
-}
-
-impl ModuleActivitiesImpl {
+impl ModuleActivities {
     pub fn new(
-        module_repo: ModuleRepository,
-        installation_repo: InstallationRepository,
-        security_repo: SecurityRepository,
-        package_service: PackageService,
-        security_service: SecurityService,
-        sandbox_service: SandboxService,
-        marketplace_service: MarketplaceService,
+        repository: Arc<dyn ModuleRepository>,
+        marketplace: Arc<dyn ModuleMarketplace>,
+        sandbox: Arc<dyn ModuleSandbox>,
+        security_scanner: Arc<dyn ModuleSecurityScanner>,
     ) -> Self {
         Self {
-            module_repo,
-            installation_repo,
-            security_repo,
-            package_service,
-            security_service,
-            sandbox_service,
-            marketplace_service,
+            repository,
+            marketplace,
+            sandbox,
+            security_scanner,
+            dependency_resolver: Arc::new(DependencyResolver::new()),
+            notification_service: Arc::new(NotificationService::new()),
         }
     }
 }
 
 #[async_trait]
-impl ModuleActivities for ModuleActivitiesImpl {
-    async fn validate_module_installation(&self, request: ValidateModuleInstallationRequest) -> Result<ValidateModuleInstallationResponse, ActivityError> {
-        // Check if module exists
-        let module = self.module_repo.get_module_by_id(&request.module_id)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?
-            .ok_or_else(|| ActivityError::ValidationFailed(format!("Module {} not found", request.module_id)))?;
+impl ModuleActivities {
+    /// Validate module installation prerequisites
+    #[temporal_sdk::activity]
+    pub async fn validate_module_installation(
+        &self,
+        request: ValidateInstallationRequest,
+    ) -> ModuleResult<ValidationResult> {
+        info!("Validating module installation: {}", request.module_id);
 
-        // Check if already installed and not force reinstall
-        if !request.force_reinstall {
-            if let Ok(Some(_)) = self.installation_repo.get_installation(&request.module_id, &request.tenant_id).await {
-                return Err(ActivityError::ValidationFailed("Module already installed".to_string()));
-            }
+        let mut errors = Vec::new();
+
+        // Check if module exists in marketplace
+        if self.marketplace.get_module(&request.module_id).await?.is_none() {
+            errors.push(format!("Module '{}' not found in marketplace", request.module_id));
         }
 
-        // Validate tenant permissions
-        // This would check tenant quotas, permissions, etc.
-        
-        // Get module dependencies
-        let dependencies = self.module_repo.get_module_dependencies(&request.module_id)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
-
-        let module_dependencies: Vec<crate::workflows::ModuleDependency> = dependencies
-            .into_iter()
-            .map(|dep| crate::workflows::ModuleDependency {
-                id: dep.dependency_id,
-                version_requirement: dep.version_requirement,
-                optional: dep.optional,
-            })
-            .collect();
-
-        // Get expected checksum from module version
-        let versions = self.module_repo.get_module_versions(&request.module_id)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
-
-        let version_record = versions
-            .into_iter()
-            .find(|v| v.version == request.version)
-            .ok_or_else(|| ActivityError::ValidationFailed(format!("Version {} not found", request.version)))?;
-
-        Ok(ValidateModuleInstallationResponse {
-            is_valid: true,
-            errors: vec![],
-            expected_checksum: version_record.package_hash,
-            dependencies: module_dependencies,
-            resource_limits: crate::types::ResourceLimits {
-                max_memory_mb: 512,
-                max_cpu_percent: 50.0,
-                max_storage_mb: 100,
-                max_network_bandwidth_mbps: Some(10.0),
-                max_execution_time_seconds: Some(300),
-            },
-            security_policy: crate::types::SecurityPolicy {
-                allow_eval: false,
-                allow_dynamic_imports: true,
-                allow_worker_threads: false,
-                allow_child_processes: false,
-                content_security_policy: Some("default-src 'self'".to_string()),
-            },
-        })
-    }
-
-    async fn download_module_package(&self, request: DownloadModulePackageRequest) -> Result<DownloadModulePackageResponse, ActivityError> {
-        let package_path = self.package_service.download_package(
-            &request.module_id,
-            &request.version,
-            &request.checksum,
-        ).await.map_err(|e| ActivityError::DownloadFailed(e.to_string()))?;
-
-        // Verify checksum
-        let verified = self.package_service.verify_checksum(&package_path, &request.checksum)
-            .await
-            .map_err(|e| ActivityError::ValidationFailed(e.to_string()))?;
-
-        if !verified {
-            // Cleanup invalid package
-            let _ = std::fs::remove_file(&package_path);
-            return Err(ActivityError::ValidationFailed("Package checksum verification failed".to_string()));
+        // Check if module is already installed for tenant
+        let existing_instances = self.repository.list_tenant_instances(&request.tenant_id).await?;
+        if existing_instances.iter().any(|instance| instance.module_id == request.module_id) {
+            errors.push(format!("Module '{}' is already installed for tenant", request.module_id));
         }
 
-        Ok(DownloadModulePackageResponse {
-            package_path,
-            verified,
+        // Check tenant permissions and quotas
+        if !self.check_tenant_permissions(&request.tenant_id, &request.module_id).await? {
+            errors.push("Insufficient permissions to install module".to_string());
+        }
+
+        if !self.check_tenant_quotas(&request.tenant_id).await? {
+            errors.push("Tenant quota exceeded for module installations".to_string());
+        }
+
+        Ok(ValidationResult {
+            is_valid: errors.is_empty(),
+            errors,
         })
     }
 
-    async fn perform_security_scan(&self, request: PerformSecurityScanRequest) -> Result<PerformSecurityScanResponse, ActivityError> {
-        let start_time = Instant::now();
+    /// Resolve module dependencies
+    #[temporal_sdk::activity]
+    pub async fn resolve_module_dependencies(
+        &self,
+        request: ResolveDependenciesRequest,
+    ) -> ModuleResult<DependencyResolutionResult> {
+        info!("Resolving dependencies for module: {}", request.module_id);
 
-        let scan_result = self.security_service.scan_package(
-            &request.package_path,
-            request.deep_scan,
-        ).await.map_err(|e| ActivityError::SecurityScanFailed(e.to_string()))?;
+        let dependencies = self.dependency_resolver
+            .resolve_dependencies(&request.module_id, request.version.as_ref())
+            .await?;
 
-        let scan_duration = start_time.elapsed();
+        // Check which dependencies are already installed
+        let existing_instances = self.repository.list_tenant_instances(&request.tenant_id).await?;
+        let mut resolved_dependencies = Vec::new();
 
-        Ok(PerformSecurityScanResponse {
-            passed: scan_result.passed,
-            score: scan_result.score,
-            vulnerabilities: scan_result.vulnerabilities,
-            scan_duration_seconds: scan_duration.as_secs() as u32,
-        })
-    }
+        for dep in dependencies {
+            let already_installed = existing_instances.iter()
+                .any(|instance| instance.module_id == dep.module_id && instance.version >= dep.version);
 
-    async fn install_dependency(&self, request: InstallDependencyRequest) -> Result<InstallDependencyResponse, ActivityError> {
-        // Check if dependency is already installed
-        if let Ok(Some(_)) = self.installation_repo.get_installation(&request.dependency_id, &request.tenant_id).await {
-            return Ok(InstallDependencyResponse {
-                installed: false,
-                already_exists: true,
+            resolved_dependencies.push(ResolvedDependency {
+                module_id: dep.module_id,
+                version: dep.version,
+                already_installed,
             });
         }
 
-        // For now, we'll simulate dependency installation
-        // In a real implementation, this would recursively install the dependency
-        
-        Ok(InstallDependencyResponse {
-            installed: true,
-            already_exists: false,
+        Ok(DependencyResolutionResult {
+            dependencies: resolved_dependencies,
         })
     }
 
-    async fn deploy_module(&self, request: DeployModuleRequest) -> Result<DeployModuleResponse, ActivityError> {
-        let deployment_id = Uuid::new_v4().to_string();
-        
-        // Extract package
-        let extraction_path = self.package_service.extract_package(
-            &request.package_path,
-            &deployment_id,
-        ).await.map_err(|e| ActivityError::InstallationFailed(e.to_string()))?;
+    /// Download module package from marketplace
+    #[temporal_sdk::activity]
+    pub async fn download_module_package(
+        &self,
+        request: DownloadPackageRequest,
+    ) -> ModuleResult<ModulePackage> {
+        info!("Downloading module package: {}", request.module_id);
 
-        // Deploy to tenant-specific location
-        let deployment_path = self.package_service.deploy_to_tenant(
-            &extraction_path,
-            &request.tenant_id,
-            &request.module_id,
-        ).await.map_err(|e| ActivityError::InstallationFailed(e.to_string()))?;
-
-        Ok(DeployModuleResponse {
-            deployment_id,
-            deployment_path,
-            extracted_files: vec![], // Would list actual files
-        })
-    }
-
-    async fn configure_sandbox(&self, request: ConfigureSandboxRequest) -> Result<ConfigureSandboxResponse, ActivityError> {
-        let sandbox_config = self.sandbox_service.create_sandbox_config(
-            &request.module_id,
-            &request.tenant_id,
-            &request.resource_limits,
-            &request.security_policy,
-        ).await.map_err(|e| ActivityError::InstallationFailed(e.to_string()))?;
-
-        Ok(ConfigureSandboxResponse {
-            sandbox_config,
-            configured: true,
-        })
-    }
-
-    async fn register_installation(&self, request: RegisterInstallationRequest) -> Result<RegisterInstallationResponse, ActivityError> {
-        let installation_id = Uuid::new_v4().to_string();
-
-        let installation = crate::models::ModuleInstallationRecord {
-            id: installation_id.clone(),
-            module_id: request.module_id.clone(),
-            tenant_id: request.tenant_id.clone(),
-            version: request.version.clone(),
-            status: "installed".to_string(),
-            configuration_json: request.configuration.map(|c| serde_json::to_value(c).unwrap()),
-            installation_path: None,
-            sandbox_config_json: Some(serde_json::to_value(request.sandbox_config).unwrap()),
-            installed_by: request.user_id.clone(),
-            installed_at: chrono::Utc::now(),
-            activated_at: None,
-            last_used_at: None,
+        let version = match request.version {
+            Some(v) => v.to_string(),
+            None => {
+                // Get latest version
+                let metadata = self.marketplace.get_module(&request.module_id).await?
+                    .ok_or_else(|| ModuleError::NotFound(request.module_id.clone()))?;
+                metadata.version.to_string()
+            }
         };
 
-        self.installation_repo.create_installation(&installation)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
+        let package = self.marketplace.download(&request.module_id, &version).await?;
 
-        Ok(RegisterInstallationResponse {
-            installation_id,
-            registered: true,
+        // Verify package integrity
+        self.verify_package_integrity(&package).await?;
+
+        Ok(package)
+    }
+
+    /// Perform security scan on module package
+    #[temporal_sdk::activity]
+    pub async fn scan_module_security(
+        &self,
+        request: SecurityScanRequest,
+    ) -> ModuleResult<SecurityScanResponse> {
+        info!("Performing security scan on module: {}", request.package.metadata.id);
+
+        let scan_result = self.security_scanner.scan_package(&request.package).await?;
+
+        let passed = match request.scan_level {
+            SecurityScanLevel::Basic => scan_result.score >= 70,
+            SecurityScanLevel::Standard => scan_result.score >= 80,
+            SecurityScanLevel::Comprehensive => scan_result.score >= 90,
+            SecurityScanLevel::Update => scan_result.score >= 75,
+        };
+
+        let issues = scan_result.issues.iter()
+            .map(|issue| format!("{}: {}", issue.severity, issue.title))
+            .collect();
+
+        Ok(SecurityScanResponse {
+            passed,
+            issues,
+            scan_result,
         })
     }
 
-    async fn activate_module(&self, request: ActivateModuleRequest) -> Result<ActivateModuleResponse, ActivityError> {
-        // Update installation status to active
-        self.installation_repo.update_installation_status(
-            &request.installation_id,
-            &ModuleStatus::Active,
-        ).await.map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
+    /// Create module instance record
+    #[temporal_sdk::activity]
+    pub async fn create_module_instance(
+        &self,
+        request: CreateInstanceRequest,
+    ) -> ModuleResult<ModuleInstance> {
+        info!("Creating module instance for: {}", request.module_id);
 
-        // Register module endpoints, workflows, etc.
-        // This would involve registering the module's extension points
+        let instance = ModuleInstance {
+            id: Uuid::new_v4(),
+            module_id: request.module_id,
+            tenant_id: request.tenant_id,
+            version: request.version,
+            status: ModuleStatus::Installing,
+            configuration: request.configuration.unwrap_or_default(),
+            installation_path: String::new(), // Will be set during deployment
+            installed_at: chrono::Utc::now(),
+            activated_at: None,
+            last_updated: chrono::Utc::now(),
+            resource_usage: crate::ResourceUsage {
+                memory_mb: 0,
+                cpu_percent: 0.0,
+                disk_mb: 0,
+                network_in_mbps: 0.0,
+                network_out_mbps: 0.0,
+                active_connections: 0,
+                last_measured: chrono::Utc::now(),
+            },
+            health_status: crate::HealthStatus {
+                is_healthy: true,
+                last_health_check: chrono::Utc::now(),
+                error_count: 0,
+                warning_count: 0,
+                uptime_seconds: 0,
+                response_time_ms: 0,
+            },
+        };
 
-        Ok(ActivateModuleResponse {
-            activated: true,
+        self.repository.save_instance(&instance).await?;
+
+        Ok(instance)
+    }
+
+    /// Deploy module to sandbox environment
+    #[temporal_sdk::activity]
+    pub async fn deploy_module_to_sandbox(
+        &self,
+        request: DeployToSandboxRequest,
+    ) -> ModuleResult<DeploymentResult> {
+        info!("Deploying module to sandbox: {}", request.instance_id);
+
+        // Create sandbox for the module
+        let sandbox_handle = self.sandbox.create_sandbox(request.instance_id).await?;
+
+        // Extract and deploy module files
+        let deployment_path = format!("/sandbox/{}/modules/{}", 
+                                    request.instance_id, 
+                                    request.package.metadata.id);
+
+        // Deploy module files to sandbox
+        self.deploy_module_files(&request.package, &deployment_path).await?;
+
+        // Apply sandbox configuration
+        self.apply_sandbox_configuration(&sandbox_handle, &request.sandbox_config).await?;
+
+        Ok(DeploymentResult {
+            id: sandbox_handle.id,
+            path: deployment_path,
         })
     }
 
-    async fn cleanup_package(&self, request: CleanupPackageRequest) -> Result<(), ActivityError> {
-        if Path::new(&request.package_path).exists() {
-            std::fs::remove_file(&request.package_path)
-                .map_err(|e| ActivityError::InstallationFailed(format!("Cleanup failed: {}", e)))?;
-        }
+    /// Initialize module with configuration
+    #[temporal_sdk::activity]
+    pub async fn initialize_module(
+        &self,
+        request: InitializeModuleRequest,
+    ) -> ModuleResult<()> {
+        info!("Initializing module: {}", request.instance_id);
+
+        // Load module and call initialize
+        // This would integrate with the module loader system
+        
+        // Update instance status
+        self.repository.update_instance_status(
+            request.instance_id, 
+            ModuleStatus::Installed
+        ).await?;
+
         Ok(())
     }
 
-    async fn validate_module_update(&self, request: ValidateModuleUpdateRequest) -> Result<ValidateModuleUpdateResponse, ActivityError> {
-        // Get current installation
-        let installation = self.installation_repo.get_installation(&request.module_id, &request.tenant_id)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?
-            .ok_or_else(|| ActivityError::ValidationFailed("Module not installed".to_string()))?;
+    /// Register module extensions with the system
+    #[temporal_sdk::activity]
+    pub async fn register_module_extensions(
+        &self,
+        request: RegisterExtensionsRequest,
+    ) -> ModuleResult<()> {
+        info!("Registering module extensions: {}", request.instance_id);
 
-        // Check if target version exists
-        let versions = self.module_repo.get_module_versions(&request.module_id)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
+        // Register UI extensions
+        for ui_extension in &request.extensions.ui_extensions {
+            self.register_ui_extension(request.instance_id, ui_extension).await?;
+        }
 
-        let target_version = versions
-            .iter()
-            .find(|v| v.version == request.target_version)
-            .ok_or_else(|| ActivityError::ValidationFailed(format!("Target version {} not found", request.target_version)))?;
+        // Register API extensions
+        for api_extension in &request.extensions.api_extensions {
+            self.register_api_extension(request.instance_id, api_extension).await?;
+        }
 
-        Ok(ValidateModuleUpdateResponse {
-            is_valid: true,
-            current_version: installation.version,
-            expected_checksum: target_version.package_hash.clone(),
-            migration_scripts: vec![], // Would contain actual migration scripts
+        // Register workflow extensions
+        for workflow_extension in &request.extensions.workflow_extensions {
+            self.register_workflow_extension(request.instance_id, workflow_extension).await?;
+        }
+
+        // Register database extensions
+        for db_extension in &request.extensions.database_extensions {
+            self.register_database_extension(request.instance_id, db_extension).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Activate module
+    #[temporal_sdk::activity]
+    pub async fn activate_module(
+        &self,
+        request: ActivateModuleRequest,
+    ) -> ModuleResult<()> {
+        info!("Activating module: {}", request.instance_id);
+
+        // Update status to activating
+        self.repository.update_instance_status(
+            request.instance_id, 
+            ModuleStatus::Activating
+        ).await?;
+
+        // Start module in sandbox
+        // This would call the module's start method
+
+        // Update status to active
+        self.repository.update_instance_status(
+            request.instance_id, 
+            ModuleStatus::Active
+        ).await?;
+
+        // Update activated_at timestamp
+        if let Some(mut instance) = self.repository.get_instance(request.instance_id).await? {
+            instance.activated_at = Some(chrono::Utc::now());
+            self.repository.save_instance(&instance).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Start monitoring for module
+    #[temporal_sdk::activity]
+    pub async fn start_module_monitoring(
+        &self,
+        request: StartMonitoringRequest,
+    ) -> ModuleResult<()> {
+        info!("Starting monitoring for module: {}", request.instance_id);
+
+        // Start health checks
+        self.start_health_monitoring(request.instance_id).await?;
+
+        // Start resource monitoring
+        self.start_resource_monitoring(request.instance_id).await?;
+
+        // Start security monitoring
+        self.start_security_monitoring(request.instance_id).await?;
+
+        Ok(())
+    }
+
+    /// Send installation notification
+    #[temporal_sdk::activity]
+    pub async fn send_installation_notification(
+        &self,
+        request: InstallationNotificationRequest,
+    ) -> ModuleResult<()> {
+        info!("Sending installation notification for module: {}", request.module_id);
+
+        self.notification_service.send_notification(
+            &request.tenant_id,
+            &request.user_id,
+            NotificationType::ModuleInstalled,
+            serde_json::json!({
+                "module_id": request.module_id,
+                "instance_id": request.instance_id,
+                "status": request.status
+            }),
+        ).await?;
+
+        Ok(())
+    }
+
+    /// Get module instance
+    #[temporal_sdk::activity]
+    pub async fn get_module_instance(
+        &self,
+        request: GetInstanceRequest,
+    ) -> ModuleResult<ModuleInstance> {
+        self.repository.get_instance(request.instance_id).await?
+            .ok_or_else(|| ModuleError::NotFound(request.instance_id.to_string()))
+    }
+
+    /// Validate module update compatibility
+    #[temporal_sdk::activity]
+    pub async fn validate_module_update(
+        &self,
+        request: ValidateUpdateRequest,
+    ) -> ModuleResult<UpdateCompatibilityResult> {
+        info!("Validating update compatibility for: {}", request.current_instance.id);
+
+        let mut issues = Vec::new();
+
+        // Check version compatibility
+        if request.target_version <= request.current_instance.version {
+            issues.push("Target version is not newer than current version".to_string());
+        }
+
+        // Check breaking changes
+        let breaking_changes = self.check_breaking_changes(
+            &request.current_instance.module_id,
+            &request.current_instance.version,
+            &request.target_version,
+        ).await?;
+
+        if !breaking_changes.is_empty() {
+            issues.extend(breaking_changes.iter().map(|change| 
+                format!("Breaking change: {}", change)
+            ));
+        }
+
+        // Check dependency compatibility
+        let dependency_issues = self.check_dependency_compatibility(
+            &request.current_instance.module_id,
+            &request.target_version,
+            &request.current_instance.tenant_id,
+        ).await?;
+
+        issues.extend(dependency_issues);
+
+        Ok(UpdateCompatibilityResult {
+            is_compatible: issues.is_empty(),
+            issues,
         })
     }
 
-    async fn backup_module(&self, request: BackupModuleRequest) -> Result<BackupModuleResponse, ActivityError> {
+    /// Create module backup
+    #[temporal_sdk::activity]
+    pub async fn create_module_backup(
+        &self,
+        request: CreateBackupRequest,
+    ) -> ModuleResult<BackupResult> {
+        info!("Creating backup for module: {}", request.instance_id);
+
         let backup_id = Uuid::new_v4().to_string();
         
-        // Create backup of current module state
-        // This would backup files, configuration, and data
-        
-        Ok(BackupModuleResponse {
-            backup_id,
-            backup_path: format!("/backups/{}", backup_id),
-            created: true,
-        })
-    }
-
-    async fn perform_module_update(&self, request: PerformModuleUpdateRequest) -> Result<PerformModuleUpdateResponse, ActivityError> {
-        // Extract new version
-        let extraction_path = self.package_service.extract_package(
-            &request.package_path,
-            &format!("update-{}", Uuid::new_v4()),
-        ).await.map_err(|e| ActivityError::InstallationFailed(e.to_string()))?;
-
-        // Apply update
-        // This would involve replacing files, running migrations, etc.
-
-        // Run migration scripts
-        let mut migration_applied = false;
-        for script in &request.migration_scripts {
-            // Execute migration script
-            migration_applied = true;
+        // Create backup based on type
+        match request.backup_type {
+            BackupType::Full => {
+                self.create_full_backup(request.instance_id, &backup_id).await?;
+            }
+            BackupType::DataOnly => {
+                self.create_data_backup(request.instance_id, &backup_id).await?;
+            }
+            BackupType::ConfigOnly => {
+                self.create_config_backup(request.instance_id, &backup_id).await?;
+            }
         }
 
-        Ok(PerformModuleUpdateResponse {
-            updated: true,
-            migration_applied,
-        })
+        Ok(BackupResult { backup_id })
     }
 
-    async fn validate_module_uninstallation(&self, request: ValidateModuleUninstallationRequest) -> Result<ValidateModuleUninstallationResponse, ActivityError> {
-        // Check if module is installed
-        let installation = self.installation_repo.get_installation(&request.module_id, &request.tenant_id)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?
-            .ok_or_else(|| ActivityError::ValidationFailed("Module not installed".to_string()))?;
+    /// Check module dependents
+    #[temporal_sdk::activity]
+    pub async fn check_module_dependents(
+        &self,
+        request: CheckDependentsRequest,
+    ) -> ModuleResult<DependentsResult> {
+        info!("Checking dependents for module: {}", request.module_id);
 
-        let is_active = installation.status == "active";
+        let instances = self.repository.list_tenant_instances(&request.tenant_id).await?;
+        let mut dependents = Vec::new();
 
-        // Check for dependent modules if not force uninstall
-        if !request.force_uninstall {
-            // Check for modules that depend on this one
-            // This would query the dependencies table
+        for instance in instances {
+            if self.module_depends_on(&instance.module_id, &request.module_id).await? {
+                dependents.push(instance.module_id);
+            }
         }
 
-        Ok(ValidateModuleUninstallationResponse {
-            is_valid: true,
-            is_active,
-            dependent_modules: vec![],
-        })
+        Ok(DependentsResult { dependents })
     }
 
-    async fn deactivate_module(&self, request: DeactivateModuleRequest) -> Result<DeactivateModuleResponse, ActivityError> {
-        // Update status to inactive
-        let installation = self.installation_repo.get_installation(&request.module_id, &request.tenant_id)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?
-            .ok_or_else(|| ActivityError::ValidationFailed("Module not installed".to_string()))?;
+    /// Cleanup module resources
+    #[temporal_sdk::activity]
+    pub async fn cleanup_module_resources(
+        &self,
+        request: CleanupResourcesRequest,
+    ) -> ModuleResult<crate::CleanupSummary> {
+        info!("Cleaning up resources for module: {}", request.instance_id);
 
-        self.installation_repo.update_installation_status(
-            &installation.id,
-            &ModuleStatus::Inactive,
-        ).await.map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
+        let mut files_removed = 0;
+        let mut database_objects_removed = 0;
 
-        Ok(DeactivateModuleResponse {
-            deactivated: true,
-        })
-    }
+        // Cleanup files
+        files_removed += self.cleanup_module_files(request.instance_id).await?;
 
-    async fn cleanup_module_data(&self, request: CleanupModuleDataRequest) -> Result<CleanupModuleDataResponse, ActivityError> {
-        // Clean up module-specific data
-        // This would involve removing database records, files, etc.
-        
-        Ok(CleanupModuleDataResponse {
-            cleaned: true,
-            data_removed: vec!["database_tables".to_string(), "uploaded_files".to_string()],
-        })
-    }
-
-    async fn remove_module_installation(&self, request: RemoveModuleInstallationRequest) -> Result<RemoveModuleInstallationResponse, ActivityError> {
-        // Remove installation record
-        self.installation_repo.delete_installation(&request.module_id, &request.tenant_id)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
-
-        // Remove dependencies if requested
-        let mut dependencies_removed = vec![];
-        if request.remove_dependencies {
-            // This would check and remove unused dependencies
+        // Cleanup database objects if requested
+        if request.cleanup_data {
+            database_objects_removed += self.cleanup_database_objects(request.instance_id).await?;
         }
 
-        Ok(RemoveModuleInstallationResponse {
-            removed: true,
-            dependencies_removed,
+        // Cleanup configuration
+        self.cleanup_module_configuration(request.instance_id).await?;
+
+        Ok(crate::CleanupSummary {
+            files_removed,
+            database_objects_removed,
+            configuration_removed: true,
+            data_backed_up: false, // Would be true if backup was created
         })
     }
 
-    async fn update_installation_status(&self, request: UpdateInstallationStatusRequest) -> Result<(), ActivityError> {
-        let installation = self.installation_repo.get_installation(&request.module_id, &request.tenant_id)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?
-            .ok_or_else(|| ActivityError::ValidationFailed("Module not installed".to_string()))?;
+    // Helper methods
 
-        self.installation_repo.update_installation_status(&installation.id, &request.status)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
+    async fn check_tenant_permissions(&self, tenant_id: &str, module_id: &str) -> ModuleResult<bool> {
+        // Check if tenant has permission to install this module
+        // This would integrate with the tenant service
+        Ok(true)
+    }
 
+    async fn check_tenant_quotas(&self, tenant_id: &str) -> ModuleResult<bool> {
+        // Check if tenant has quota available for module installation
+        // This would integrate with the license service
+        Ok(true)
+    }
+
+    async fn verify_package_integrity(&self, package: &ModulePackage) -> ModuleResult<()> {
+        // Verify package checksum and signature
+        // Implementation would validate the package integrity
         Ok(())
     }
 
-    async fn fetch_marketplace_data(&self, request: FetchMarketplaceDataRequest) -> Result<FetchMarketplaceDataResponse, ActivityError> {
-        let modules = self.marketplace_service.fetch_modules(
-            &request.sync_type,
-            request.module_ids.as_ref(),
-            request.force_update,
-        ).await.map_err(|e| ActivityError::ExternalServiceError(e.to_string()))?;
-
-        Ok(FetchMarketplaceDataResponse {
-            modules,
-        })
+    async fn deploy_module_files(&self, package: &ModulePackage, path: &str) -> ModuleResult<()> {
+        // Extract and deploy module files to the specified path
+        // Implementation would handle file extraction and deployment
+        Ok(())
     }
 
-    async fn sync_module_data(&self, request: SyncModuleDataRequest) -> Result<SyncModuleDataResponse, ActivityError> {
-        let action = self.marketplace_service.sync_module(&request.module_data, request.force_update)
-            .await
-            .map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
-
-        Ok(SyncModuleDataResponse {
-            action,
-        })
+    async fn apply_sandbox_configuration(
+        &self,
+        handle: &crate::SandboxHandle,
+        config: &crate::SandboxConfiguration,
+    ) -> ModuleResult<()> {
+        // Apply sandbox security and resource configurations
+        // Implementation would configure the sandbox environment
+        Ok(())
     }
 
-    async fn download_module_for_scan(&self, request: DownloadModuleForScanRequest) -> Result<DownloadModuleForScanResponse, ActivityError> {
-        let package_path = self.package_service.download_package_for_scan(
-            &request.module_id,
-            &request.version,
-        ).await.map_err(|e| ActivityError::DownloadFailed(e.to_string()))?;
-
-        Ok(DownloadModuleForScanResponse {
-            package_path,
-        })
+    async fn register_ui_extension(&self, instance_id: Uuid, extension: &crate::UiExtensionPoint) -> ModuleResult<()> {
+        // Register UI extension with the frontend system
+        Ok(())
     }
 
-    async fn store_scan_results(&self, request: StoreScanResultsRequest) -> Result<(), ActivityError> {
-        self.security_repo.store_scan_results(
-            &request.module_id,
-            &request.version,
-            &request.scan_type,
-            &request.scan_results,
-        ).await.map_err(|e| ActivityError::DatabaseFailed(e.to_string()))?;
+    async fn register_api_extension(&self, instance_id: Uuid, extension: &crate::ApiExtensionPoint) -> ModuleResult<()> {
+        // Register API extension with the API gateway
+        Ok(())
+    }
 
+    async fn register_workflow_extension(&self, instance_id: Uuid, extension: &crate::WorkflowExtensionPoint) -> ModuleResult<()> {
+        // Register workflow extension with Temporal
+        Ok(())
+    }
+
+    async fn register_database_extension(&self, instance_id: Uuid, extension: &crate::DatabaseExtensionPoint) -> ModuleResult<()> {
+        // Register database extension (tables, views, etc.)
+        Ok(())
+    }
+
+    async fn start_health_monitoring(&self, instance_id: Uuid) -> ModuleResult<()> {
+        // Start health check monitoring for the module
+        Ok(())
+    }
+
+    async fn start_resource_monitoring(&self, instance_id: Uuid) -> ModuleResult<()> {
+        // Start resource usage monitoring for the module
+        Ok(())
+    }
+
+    async fn start_security_monitoring(&self, instance_id: Uuid) -> ModuleResult<()> {
+        // Start security monitoring for the module
+        Ok(())
+    }
+
+    async fn check_breaking_changes(
+        &self,
+        module_id: &str,
+        current_version: &semver::Version,
+        target_version: &semver::Version,
+    ) -> ModuleResult<Vec<String>> {
+        // Check for breaking changes between versions
+        Ok(vec![])
+    }
+
+    async fn check_dependency_compatibility(
+        &self,
+        module_id: &str,
+        version: &semver::Version,
+        tenant_id: &str,
+    ) -> ModuleResult<Vec<String>> {
+        // Check if dependencies are compatible with the new version
+        Ok(vec![])
+    }
+
+    async fn create_full_backup(&self, instance_id: Uuid, backup_id: &str) -> ModuleResult<()> {
+        // Create full backup including files, data, and configuration
+        Ok(())
+    }
+
+    async fn create_data_backup(&self, instance_id: Uuid, backup_id: &str) -> ModuleResult<()> {
+        // Create backup of module data only
+        Ok(())
+    }
+
+    async fn create_config_backup(&self, instance_id: Uuid, backup_id: &str) -> ModuleResult<()> {
+        // Create backup of module configuration only
+        Ok(())
+    }
+
+    async fn module_depends_on(&self, module_id: &str, dependency_id: &str) -> ModuleResult<bool> {
+        // Check if module_id depends on dependency_id
+        Ok(false)
+    }
+
+    async fn cleanup_module_files(&self, instance_id: Uuid) -> ModuleResult<u32> {
+        // Cleanup module files and return count
+        Ok(0)
+    }
+
+    async fn cleanup_database_objects(&self, instance_id: Uuid) -> ModuleResult<u32> {
+        // Cleanup database objects and return count
+        Ok(0)
+    }
+
+    async fn cleanup_module_configuration(&self, instance_id: Uuid) -> ModuleResult<()> {
+        // Cleanup module configuration
         Ok(())
     }
 }
 
-// Request/Response types for activities
-use serde::{Deserialize, Serialize};
+// Supporting types and services
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateModuleInstallationRequest {
-    pub module_id: String,
-    pub version: String,
-    pub tenant_id: String,
-    pub user_id: String,
-    pub force_reinstall: bool,
+pub struct DependencyResolver {
+    // Implementation for dependency resolution
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateModuleInstallationResponse {
-    pub is_valid: bool,
-    pub errors: Vec<String>,
-    pub expected_checksum: String,
-    pub dependencies: Vec<crate::workflows::ModuleDependency>,
-    pub resource_limits: crate::types::ResourceLimits,
-    pub security_policy: crate::types::SecurityPolicy,
+impl DependencyResolver {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub async fn resolve_dependencies(
+        &self,
+        module_id: &str,
+        version: Option<&semver::Version>,
+    ) -> ModuleResult<Vec<crate::manager::ResolvedDependency>> {
+        // Resolve module dependencies
+        Ok(vec![])
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadModulePackageRequest {
-    pub module_id: String,
-    pub version: String,
-    pub checksum: String,
+pub struct NotificationService {
+    // Implementation for sending notifications
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadModulePackageResponse {
-    pub package_path: String,
-    pub verified: bool,
+impl NotificationService {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub async fn send_notification(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        notification_type: NotificationType,
+        data: serde_json::Value,
+    ) -> ModuleResult<()> {
+        // Send notification to user
+        Ok(())
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerformSecurityScanRequest {
-    pub module_id: String,
-    pub version: String,
-    pub package_path: String,
-    pub deep_scan: bool,
+#[derive(Debug, Clone)]
+pub enum NotificationType {
+    ModuleInstalled,
+    ModuleUpdated,
+    ModuleUninstalled,
+    ModuleActivated,
+    ModuleDeactivated,
+    ModuleError,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerformSecurityScanResponse {
-    pub passed: bool,
-    pub score: u8,
-    pub vulnerabilities: Vec<SecurityVulnerability>,
-    pub scan_duration_seconds: u32,
+// Additional request/response types
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct GetInstanceRequest {
+    pub instance_id: Uuid,
 }
 
-// Additional request/response types would be defined here...
-// (I'll include a few more key ones)
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InstallDependencyRequest {
-    pub dependency_id: String,
-    pub version_requirement: String,
-    pub tenant_id: String,
-    pub optional: bool,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ValidateUpdateRequest {
+    pub current_instance: ModuleInstance,
+    pub target_version: semver::Version,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InstallDependencyResponse {
-    pub installed: bool,
-    pub already_exists: bool,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UpdateCompatibilityResult {
+    pub is_compatible: bool,
+    pub issues: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeployModuleRequest {
-    pub module_id: String,
-    pub version: String,
-    pub package_path: String,
-    pub tenant_id: String,
-    pub configuration: Option<HashMap<String, serde_json::Value>>,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CreateBackupRequest {
+    pub instance_id: Uuid,
+    pub backup_type: BackupType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeployModuleResponse {
-    pub deployment_id: String,
-    pub deployment_path: String,
-    pub extracted_files: Vec<String>,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum BackupType {
+    Full,
+    DataOnly,
+    ConfigOnly,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConfigureSandboxRequest {
-    pub module_id: String,
-    pub tenant_id: String,
-    pub resource_limits: crate::types::ResourceLimits,
-    pub security_policy: crate::types::SecurityPolicy,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConfigureSandboxResponse {
-    pub sandbox_config: crate::types::SandboxConfig,
-    pub configured: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegisterInstallationRequest {
-    pub module_id: String,
-    pub version: String,
-    pub tenant_id: String,
-    pub user_id: String,
-    pub deployment_id: String,
-    pub configuration: Option<HashMap<String, serde_json::Value>>,
-    pub sandbox_config: crate::types::SandboxConfig,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegisterInstallationResponse {
-    pub installation_id: String,
-    pub registered: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActivateModuleRequest {
-    pub installation_id: String,
-    pub module_id: String,
-    pub tenant_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActivateModuleResponse {
-    pub activated: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CleanupPackageRequest {
-    pub package_path: String,
-}
-
-// Update-related types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateModuleUpdateRequest {
-    pub module_id: String,
-    pub current_version: String,
-    pub target_version: String,
-    pub tenant_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateModuleUpdateResponse {
-    pub is_valid: bool,
-    pub current_version: String,
-    pub expected_checksum: String,
-    pub migration_scripts: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BackupModuleRequest {
-    pub module_id: String,
-    pub tenant_id: String,
-    pub backup_type: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BackupModuleResponse {
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BackupResult {
     pub backup_id: String,
-    pub backup_path: String,
-    pub created: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerformModuleUpdateRequest {
-    pub module_id: String,
-    pub target_version: String,
-    pub package_path: String,
-    pub tenant_id: String,
-    pub migration_scripts: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PerformModuleUpdateResponse {
-    pub updated: bool,
-    pub migration_applied: bool,
-}
-
-// Uninstallation-related types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateModuleUninstallationRequest {
-    pub module_id: String,
-    pub tenant_id: String,
-    pub force_uninstall: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateModuleUninstallationResponse {
-    pub is_valid: bool,
-    pub is_active: bool,
-    pub dependent_modules: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeactivateModuleRequest {
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CheckDependentsRequest {
     pub module_id: String,
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeactivateModuleResponse {
-    pub deactivated: bool,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DependentsResult {
+    pub dependents: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CleanupModuleDataRequest {
-    pub module_id: String,
-    pub tenant_id: String,
-    pub cleanup_type: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CleanupModuleDataResponse {
-    pub cleaned: bool,
-    pub data_removed: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RemoveModuleInstallationRequest {
-    pub module_id: String,
-    pub tenant_id: String,
-    pub remove_dependencies: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RemoveModuleInstallationResponse {
-    pub removed: bool,
-    pub dependencies_removed: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateInstallationStatusRequest {
-    pub module_id: String,
-    pub tenant_id: String,
-    pub status: ModuleStatus,
-}
-
-// Marketplace-related types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FetchMarketplaceDataRequest {
-    pub sync_type: String,
-    pub module_ids: Option<Vec<String>>,
-    pub force_update: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FetchMarketplaceDataResponse {
-    pub modules: Vec<crate::types::MarketplaceListing>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SyncModuleDataRequest {
-    pub module_data: crate::types::MarketplaceListing,
-    pub force_update: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SyncModuleDataResponse {
-    pub action: SyncAction,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SyncAction {
-    Added,
-    Updated,
-    Removed,
-    NoChange,
-}
-
-// Security-related types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadModuleForScanRequest {
-    pub module_id: String,
-    pub version: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DownloadModuleForScanResponse {
-    pub package_path: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StoreScanResultsRequest {
-    pub module_id: String,
-    pub version: String,
-    pub scan_type: String,
-    pub scan_results: PerformSecurityScanResponse,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CleanupResourcesRequest {
+    pub instance_id: Uuid,
+    pub cleanup_data: bool,
 }

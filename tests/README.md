@@ -1,363 +1,309 @@
-# ADX CORE End-to-End Integration Testing Framework
+# ADX Core Cross-Platform Testing
 
-This comprehensive integration testing framework validates all aspects of the ADX CORE temporal-first microservices platform, including circuit breakers, user workflows, multi-tenant isolation, load testing, and cross-micro-frontend integration.
+This directory contains comprehensive cross-platform testing infrastructure for ADX Core, covering desktop applications, mobile applications, and web-based micro-frontends.
 
-## Overview
-
-The integration testing framework provides:
-
-- **Complete Environment Setup**: Automatically starts all services, databases, and infrastructure
-- **Circuit Breaker Testing**: Validates error handling and recovery across all services
-- **User Workflow Testing**: Tests complete user journeys from registration to usage
-- **Multi-Tenant Isolation**: Ensures complete data and security isolation between tenants
-- **Load Testing**: Performance validation under realistic load conditions
-- **Micro-Frontend Integration**: Tests Module Federation and cross-micro-frontend communication
-- **Comprehensive Reporting**: Detailed HTML and JSON test reports
-
-## Architecture
+## Test Structure
 
 ```
 tests/
-├── integration/
-│   ├── mod.rs                    # Main integration test module
-│   ├── test_environment.rs       # Test environment setup and management
-│   ├── circuit_breakers.rs       # Circuit breaker integration tests
-│   ├── user_workflows.rs         # Complete user workflow tests
-│   ├── multi_tenant.rs           # Multi-tenant isolation tests
-│   ├── load_testing.rs           # Load and performance tests
-│   ├── micro_frontend.rs         # Micro-frontend integration tests
-│   ├── cross_service.rs          # Cross-service integration tests
-│   └── performance.rs            # Performance validation tests
-├── integration_tests.rs          # Main test runner
-├── Cargo.toml                    # Test dependencies
-└── README.md                     # This file
+├── desktop/                    # Desktop application tests (Tauri)
+│   ├── tauri-integration.test.ts
+│   ├── global-setup.ts
+│   └── global-teardown.ts
+├── mobile/                     # Mobile application tests
+│   ├── ios-integration.test.ts
+│   └── android-integration.test.ts
+├── cross-platform/            # Cross-platform compatibility tests
+│   └── compatibility.test.ts
+├── performance/               # Performance tests across platforms
+│   ├── global-setup.ts
+│   └── global-teardown.ts
+├── e2e/                       # End-to-end tests
+│   └── specs/
+│       └── cross-microfrontend.spec.ts
+└── security/                  # Security tests
+    └── security_tests.rs
 ```
 
-## Test Suites
+## Test Types
 
-### 1. Circuit Breaker Tests
-- **API Gateway Circuit Breakers**: Tests circuit breaker behavior for backend service failures
-- **Service-to-Service Circuit Breakers**: Validates circuit breakers between microservices
-- **BFF Circuit Breakers**: Tests BFF service circuit breakers and fallback mechanisms
-- **Temporal Workflow Circuit Breakers**: Validates workflow activity circuit breakers
-- **Database Circuit Breakers**: Tests database connection and query timeout circuit breakers
-- **Redis Circuit Breakers**: Validates cache circuit breakers and fallback behavior
+### 1. Desktop Tests (`tests/desktop/`)
 
-### 2. User Workflow Tests
-- **User Registration Workflow**: Complete user registration with email verification
-- **User Login Workflow**: Authentication, token validation, and session management
-- **Tenant Switching Workflow**: Multi-tenant context switching with security validation
-- **File Management Workflow**: File upload, processing, sharing, and management
-- **User Profile Workflow**: Profile management and preference updates
-- **Module Workflow**: Module installation, activation, and usage
-- **Workflow Monitoring**: Workflow status tracking and management
-- **User Deactivation Workflow**: Account deactivation and cleanup
+Tests for Tauri-based desktop applications across Windows, macOS, and Linux.
 
-### 3. Multi-Tenant Isolation Tests
-- **Data Isolation**: Ensures complete data separation between tenants
-- **User Access Control**: Validates tenant-based access control
-- **Workflow Isolation**: Tests workflow isolation between tenants
-- **File Storage Isolation**: Ensures file storage isolation
-- **API Tenant Filtering**: Validates API endpoint tenant filtering
-- **Cross-Tenant Leakage Prevention**: Tests for data leakage prevention
-- **Tenant Switching Security**: Security validation for tenant switching
-- **Quota Enforcement**: Per-tenant quota and rate limiting
+**Features tested:**
+- Native window operations (minimize, maximize, close)
+- File system access through Tauri APIs
+- Native notifications
+- Deep linking and custom protocols
+- System theme integration
+- Multi-window scenarios
+- Platform-specific shortcuts
 
-### 4. Load Testing Suite
-- **API Endpoint Load**: Concurrent API request handling
-- **Workflow Execution Load**: Concurrent workflow execution performance
-- **Concurrent User Simulation**: Realistic user session simulation
-- **Database Performance Load**: Database performance under load
-- **File Upload Load**: Concurrent file upload handling
-- **Multi-Tenant Load Isolation**: Load isolation between tenants
-
-### 5. Micro-Frontend Integration Tests
-- **Module Federation Loading**: Tests Module Federation configuration and loading
-- **Cross-Micro-Frontend Communication**: Event bus and shared state testing
-- **Shared State Management**: Tenant context and authentication state
-- **Micro-Frontend Isolation**: Error boundaries and failure isolation
-- **BFF Integration**: BFF service integration with micro-frontends
-- **Error Boundaries**: Graceful failure handling and fallbacks
-
-## Prerequisites
-
-### Required Software
-- **Docker & Docker Compose**: For infrastructure services
-- **Rust 1.88+**: For backend services and test runner
-- **Node.js 18+**: For frontend micro-services
-- **PostgreSQL**: Database (via Docker)
-- **Redis**: Caching (via Docker)
-- **Temporal**: Workflow engine (via Docker)
-
-### System Requirements
-- **Memory**: Minimum 8GB RAM (16GB recommended for load testing)
-- **CPU**: Multi-core processor (4+ cores recommended)
-- **Disk**: 10GB free space
-- **Network**: Internet connection for Docker images
-
-## Quick Start
-
-### 1. Run All Tests
+**Run desktop tests:**
 ```bash
-# Run complete integration test suite
-./scripts/run-integration-tests.sh
-
-# Run with load testing enabled
-./scripts/run-integration-tests.sh --enable-load-testing
-
-# Run with custom configuration
-./scripts/run-integration-tests.sh \
-  --enable-load-testing \
-  --max-users 50 \
-  --test-duration 180 \
-  --verbose
+npm run test:desktop:integration
+npm run test:desktop:e2e
 ```
 
-### 2. Run Specific Test Suites
+### 2. Mobile Tests (`tests/mobile/`)
+
+Tests for mobile applications on iOS and Android platforms.
+
+**Features tested:**
+- Touch gestures and interactions
+- Mobile-specific UI patterns
+- Device orientation changes
+- Native mobile APIs
+- Performance on mobile devices
+- App state management (background/foreground)
+
+**Run mobile tests:**
 ```bash
-# Build and run tests manually
-cd tests
-cargo build --bin integration_tests
-cargo run --bin integration_tests
+npm run test:mobile:ios
+npm run test:mobile:android
 ```
 
-### 3. Environment Variables
+### 3. Cross-Platform Compatibility Tests (`tests/cross-platform/`)
+
+Comprehensive compatibility testing across all supported platforms.
+
+**Features tested:**
+- JavaScript API compatibility
+- CSS feature support
+- Web API availability
+- Performance metrics comparison
+- Responsive design validation
+- Accessibility compliance
+
+**Run compatibility tests:**
 ```bash
-# Core configuration
-export DATABASE_URL="postgres://postgres:postgres@localhost:5432/adx_core_test"
-export REDIS_URL="redis://localhost:6379"
-export TEMPORAL_URL="http://localhost:7233"
-export API_GATEWAY_URL="http://localhost:8080"
-export FRONTEND_SHELL_URL="http://localhost:3000"
-
-# Load testing configuration
-export ENABLE_LOAD_TESTING="true"
-export MAX_CONCURRENT_USERS="100"
-export TEST_DURATION_SECONDS="300"
+npm run test:cross-platform:compatibility
 ```
 
-## Configuration Options
+### 4. Performance Tests (`tests/performance/`)
 
-### Script Options
+Performance testing across different platforms and devices.
+
+**Metrics measured:**
+- Page load times
+- First Contentful Paint (FCP)
+- Time to Interactive (TTI)
+- Memory usage
+- Bundle sizes
+- Network performance
+
+**Run performance tests:**
 ```bash
---enable-load-testing    # Enable load testing (default: false)
---max-users NUM         # Maximum concurrent users (default: 100)
---test-duration SEC     # Test duration in seconds (default: 300)
---no-cleanup           # Don't cleanup on exit (default: cleanup)
---verbose              # Enable verbose output (default: false)
---help                 # Show help message
+npm run test:performance:cross-platform
 ```
 
-### Environment Variables
-- `ENABLE_LOAD_TESTING`: Enable/disable load testing
-- `MAX_CONCURRENT_USERS`: Maximum concurrent users for load testing
-- `TEST_DURATION_SECONDS`: Duration for load tests
-- `DATABASE_URL`: PostgreSQL connection string
-- `REDIS_URL`: Redis connection string
-- `TEMPORAL_URL`: Temporal server URL
-- `API_GATEWAY_URL`: API Gateway URL
-- `FRONTEND_SHELL_URL`: Frontend shell application URL
+## Configuration Files
+
+### Playwright Configurations
+
+- `playwright.config.desktop.ts` - Desktop-specific test configuration
+- `playwright.config.performance.ts` - Performance test configuration
+- `playwright.config.ts` - Default configuration for web tests
+
+### Test Scripts
+
+- `scripts/test-cross-platform.sh` - Main cross-platform test runner
+- `scripts/deployment-health-check.sh` - Post-deployment health checks
+- `scripts/deployment-rollback.sh` - Automated rollback procedures
+
+## Running Tests
+
+### All Cross-Platform Tests
+```bash
+npm run test:cross-platform
+```
+
+### Specific Test Types
+```bash
+# Desktop tests only
+npm run test:cross-platform desktop
+
+# Mobile tests only
+npm run test:cross-platform mobile
+
+# Compatibility tests only
+npm run test:cross-platform compatibility
+
+# Performance tests only
+npm run test:cross-platform performance
+```
+
+### Platform-Specific Tests
+```bash
+# Test specific platforms
+./scripts/test-cross-platform.sh all windows,macos
+./scripts/test-cross-platform.sh mobile ios
+./scripts/test-cross-platform.sh desktop linux
+```
+
+## CI/CD Integration
+
+### GitHub Actions Workflows
+
+- `.github/workflows/tauri-desktop-tests.yml` - Desktop testing across platforms
+- `.github/workflows/mobile-tests.yml` - Mobile application testing
+- `.github/workflows/deploy-microservices.yml` - Backend service deployment
+- `.github/workflows/deploy-microfrontends.yml` - Frontend deployment
+- `.github/workflows/automated-rollback.yml` - Automated rollback procedures
+
+### Test Execution in CI
+
+Tests are automatically executed on:
+- Push to main/develop branches
+- Pull requests
+- Manual workflow dispatch
+- Scheduled runs (nightly)
 
 ## Test Reports
 
-The framework generates comprehensive test reports:
+### Generated Reports
 
-### HTML Report (`integration_test_report.html`)
-- Interactive test results with visual indicators
-- Detailed test suite breakdown
-- Performance metrics and charts
-- Failed test details with assertions
-- Environment information
+- **Compatibility Report**: `reports/cross-platform-compatibility-report.html`
+- **Performance Report**: `test-results/performance/performance-report.html`
+- **Mobile Compatibility**: `reports/mobile-compatibility-report.html`
+- **Desktop Test Results**: `test-results/desktop/`
 
-### JSON Report (`integration_test_report.json`)
-- Machine-readable test results
-- Complete test execution data
-- Performance metrics
-- Error details and stack traces
-- Suitable for CI/CD integration
+### Report Contents
 
-## Performance Criteria
+1. **Feature Compatibility Matrix**: Shows which features are supported on each platform
+2. **Performance Metrics**: Load times, rendering performance, memory usage
+3. **Error Summary**: Failed tests and issues found
+4. **Recommendations**: Actionable suggestions for improvements
 
-### API Performance
-- **Response Time**: <200ms for 95th percentile
-- **Throughput**: >100 requests/second
-- **Success Rate**: >95% under normal load
-- **Error Rate**: <5% under load
+## Prerequisites
 
-### Workflow Performance
-- **Initiation Time**: <1000ms for workflow start
-- **Execution Time**: <5s for 90% of workflows, <30s for complex workflows
-- **Success Rate**: >90% workflow completion
-- **Temporal UI**: All workflows visible and debuggable
+### Desktop Testing
+- Rust and Cargo
+- Tauri CLI: `cargo install tauri-cli`
+- Platform-specific dependencies:
+  - **Windows**: Visual Studio Build Tools
+  - **macOS**: Xcode Command Line Tools
+  - **Linux**: GTK development libraries
 
-### Frontend Performance
-- **Loading Time**: <2s initial load, <500ms micro-frontend switches
-- **Module Federation**: <500KB per micro-frontend bundle
-- **Cross-Communication**: <100ms event bus latency
-- **Error Recovery**: Graceful degradation on micro-frontend failures
+### Mobile Testing
+- **iOS**: Xcode, iOS Simulator
+- **Android**: Android SDK, Android Emulator
+- Node.js 18+
+- Playwright browsers
 
-### Multi-Tenant Performance
-- **Isolation**: 100% data isolation between tenants
-- **Security**: 0% cross-tenant data leakage
-- **Performance**: <10% performance impact from tenant switching
-- **Quota Enforcement**: 100% quota compliance
+### General Requirements
+- Node.js 18+
+- npm or yarn
+- Playwright: `npx playwright install`
+
+## Environment Variables
+
+```bash
+# Test configuration
+HEADLESS=true                    # Run tests in headless mode
+PLATFORM=all                    # Target platforms
+TEST_TIMEOUT=60000              # Test timeout in milliseconds
+
+# CI/CD configuration
+CI=true                         # Enable CI-specific settings
+ARTIFACTS_PATH=test-results/    # Test artifacts location
+SLACK_WEBHOOK_URL=...          # Slack notifications
+NOTIFICATION_EMAIL=...         # Email notifications
+
+# Deployment configuration
+AWS_ACCESS_KEY_ID=...          # AWS credentials
+AWS_SECRET_ACCESS_KEY=...      # AWS credentials
+KUBE_CONFIG=...                # Kubernetes configuration
+CLOUDFRONT_DISTRIBUTION_ID=... # CloudFront distribution
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### Services Not Starting
-```bash
-# Check Docker status
-docker info
+1. **Desktop app not found**
+   ```bash
+   # Build the desktop app first
+   cargo tauri build --debug
+   ```
 
-# Check port availability
-netstat -tulpn | grep :8080
+2. **Mobile emulator not running**
+   ```bash
+   # Start iOS simulator
+   xcrun simctl boot "iPhone 14"
+   
+   # Start Android emulator
+   emulator -avd Pixel_5_API_33
+   ```
 
-# Check service logs
-docker-compose -f adx-core/infrastructure/docker/docker-compose.dev.yml logs
-```
+3. **Playwright browsers not installed**
+   ```bash
+   npx playwright install
+   ```
 
-#### Database Connection Issues
-```bash
-# Test database connection
-docker exec -it $(docker-compose ps -q postgres) psql -U postgres -d adx_core_test
-
-# Check database migrations
-cd adx-core && sqlx migrate info
-```
-
-#### Frontend Build Issues
-```bash
-# Clear node modules and reinstall
-rm -rf node_modules package-lock.json
-npm install
-
-# Check individual micro-frontend builds
-cd apps/shell && npm run build
-```
-
-#### Temporal Connection Issues
-```bash
-# Check Temporal server status
-curl http://localhost:8088
-
-# Check Temporal UI
-open http://localhost:8088
-```
+4. **Permission denied on scripts**
+   ```bash
+   chmod +x scripts/*.sh
+   ```
 
 ### Debug Mode
-```bash
-# Run with verbose output
-./scripts/run-integration-tests.sh --verbose
 
-# Run individual test components
-cd tests
-RUST_LOG=debug cargo run --bin integration_tests
+Run tests with debug output:
+```bash
+DEBUG=pw:api npm run test:cross-platform
+HEADLESS=false npm run test:desktop:e2e
 ```
 
-### Manual Service Testing
+### Test Data Cleanup
+
+Clean up test artifacts:
 ```bash
-# Test API Gateway
-curl http://localhost:8080/health
-
-# Test individual services
-curl http://localhost:8081/health  # Auth Service
-curl http://localhost:8082/health  # User Service
-curl http://localhost:8083/health  # File Service
-
-# Test frontend services
-curl http://localhost:3000  # Shell Application
-curl http://localhost:3001  # Auth Micro-Frontend
-```
-
-## CI/CD Integration
-
-### GitHub Actions Example
-```yaml
-name: Integration Tests
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  integration-tests:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-    
-    - name: Run Integration Tests
-      run: |
-        chmod +x scripts/run-integration-tests.sh
-        ./scripts/run-integration-tests.sh --enable-load-testing
-    
-    - name: Upload Test Reports
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: integration-test-reports
-        path: |
-          tests/integration_test_report.html
-          tests/integration_test_report.json
+rm -rf test-results/
+rm -rf reports/
+rm -rf screenshots/
 ```
 
 ## Contributing
 
 ### Adding New Tests
-1. Create test module in `tests/integration/`
-2. Implement test suite struct with `run_all_tests()` method
-3. Add individual test methods returning `TestResult`
-4. Update main test runner to include new suite
-5. Update documentation
 
-### Test Structure
-```rust
-pub struct NewTestSuite {
-    env: Arc<IntegrationTestEnvironment>,
-    test_data: TestData,
-}
+1. Create test files in the appropriate directory
+2. Follow the existing naming convention
+3. Add test scripts to `package.json`
+4. Update CI/CD workflows if needed
+5. Document any new dependencies
 
-impl NewTestSuite {
-    pub async fn run_all_tests(&self) -> Result<IntegrationTestResults, Box<dyn std::error::Error>> {
-        // Implementation
-    }
-    
-    async fn test_specific_functionality(&self) -> TestResult {
-        // Individual test implementation
-    }
-}
-```
+### Test Guidelines
 
-### Best Practices
-- Use descriptive test names and assertions
-- Include comprehensive error messages
-- Test both success and failure scenarios
-- Validate performance criteria
-- Ensure proper cleanup
-- Document test purpose and expectations
+- Use descriptive test names
+- Include proper error handling
+- Add appropriate timeouts
+- Clean up resources after tests
+- Generate meaningful reports
+- Follow accessibility best practices
 
-## Support
+### Platform-Specific Considerations
 
-For issues with the integration testing framework:
+- **Desktop**: Test native integrations and window management
+- **Mobile**: Focus on touch interactions and mobile-specific APIs
+- **Web**: Ensure cross-browser compatibility
+- **Performance**: Test on various device capabilities
 
-1. Check the troubleshooting section above
-2. Review test logs and reports
-3. Verify all prerequisites are installed
-4. Check service health endpoints
-5. Run tests with verbose output for debugging
+## Monitoring and Alerting
 
-The integration testing framework is designed to provide comprehensive validation of the ADX CORE platform's reliability, performance, and security across all components and user workflows.
+### Deployment Monitoring
+
+- Health checks after deployment
+- Performance regression detection
+- Error rate monitoring
+- Rollback triggers
+
+### Alert Channels
+
+- Slack notifications for test failures
+- Email alerts for critical issues
+- GitHub issues for rollback failures
+- Dashboard updates for metrics
+
+This comprehensive testing infrastructure ensures ADX Core works reliably across all supported platforms and provides early detection of issues through automated testing and monitoring.

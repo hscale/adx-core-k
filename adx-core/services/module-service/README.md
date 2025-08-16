@@ -1,329 +1,562 @@
 # ADX Core Module Service
 
-A comprehensive module management system with Temporal workflows, marketplace integration, and advanced security features.
+A comprehensive module system with Temporal workflows for reliable module lifecycle management, marketplace integration, sandboxing, and security scanning.
 
 ## Features
 
-### Core Module Management
-- **Hot-loading**: Modules can be loaded and unloaded without system restart
-- **Dependency Resolution**: Automatic dependency management with version compatibility
-- **Version Management**: Support for multiple module versions with migration capabilities
-- **Tenant Isolation**: Complete isolation of modules per tenant
+### Core Module System
+- **Trait-based Architecture**: Extensible module system with comprehensive trait definitions
+- **Hot-loading**: Dynamic module loading and reloading without system restart
+- **Dependency Resolution**: Automatic dependency resolution and version compatibility checking
+- **Multi-language Support**: Support for Rust, JavaScript, Python, and WebAssembly modules
 
-### Temporal-First Architecture
-- **Workflow-Driven Operations**: All complex operations implemented as Temporal workflows
-- **Automatic Retry**: Built-in retry and compensation logic for reliability
-- **Observability**: Complete visibility into module operations through Temporal UI
-- **Cross-Service Coordination**: Workflows coordinate operations across multiple services
-
-### Security & Sandboxing
-- **Comprehensive Security Scanning**: Static analysis, dependency checks, malware detection
-- **Resource Limits**: CPU, memory, storage, and network bandwidth limits
-- **Sandbox Enforcement**: Isolated execution environment for modules
-- **Permission System**: Fine-grained permission control for module operations
+### Temporal Workflow Integration
+- **Reliable Operations**: All complex module operations implemented as Temporal workflows
+- **Automatic Retry**: Built-in retry and compensation logic for failed operations
+- **Rollback Capabilities**: Automatic rollback on installation/update failures
+- **Progress Tracking**: Real-time progress tracking for long-running operations
 
 ### Marketplace Integration
-- **Module Discovery**: Browse and search modules from the marketplace
-- **Payment Processing**: Support for free, paid, and subscription-based modules
-- **Ratings & Reviews**: Community-driven module evaluation
-- **Automated Indexing**: Real-time synchronization with marketplace data
+- **Module Discovery**: Search and browse modules with advanced filtering
+- **Payment Processing**: Integrated payment processing with multiple providers
+- **Reviews and Ratings**: Community-driven module reviews and ratings
+- **Recommendations**: AI-powered module recommendations based on usage patterns
+
+### Security and Sandboxing
+- **Multi-level Isolation**: Process, container, and WASM-based sandboxing
+- **Security Scanning**: Comprehensive security scanning with vulnerability detection
+- **Resource Limits**: Configurable resource limits and monitoring
+- **Permission System**: Fine-grained permission system for module capabilities
 
 ### Development SDK
-- **Module Templates**: Pre-built templates for different module types
-- **Development Tools**: Build, test, and package modules
-- **Documentation Generator**: Automatic API documentation generation
-- **Testing Framework**: Comprehensive testing tools for module development
+- **Module SDK**: Comprehensive SDK for module development
+- **Extension Points**: Multiple extension points for UI, API, workflows, and database
+- **Development Tools**: Built-in logging, configuration, storage, and HTTP utilities
+- **Cross-platform Support**: Support for web, desktop, and mobile platforms
 
 ## Architecture
 
-### Service Modes
-The module service operates in multiple modes:
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Module Service Architecture                  │
+├─────────────────────────────────────────────────────────────────┤
+│  HTTP API Layer                                                │
+│  ├─ Module Management (Install/Update/Uninstall)               │
+│  ├─ Marketplace Integration (Search/Purchase/Reviews)          │
+│  ├─ Workflow Status Tracking                                   │
+│  └─ Health and Monitoring                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  Temporal Workflow Layer                                       │
+│  ├─ Installation Workflows (with rollback)                     │
+│  ├─ Update Workflows (with compatibility checks)               │
+│  ├─ Uninstallation Workflows (with cleanup)                    │
+│  └─ Marketplace Sync Workflows                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  Module Management Layer                                       │
+│  ├─ Module Manager (lifecycle management)                      │
+│  ├─ Dependency Resolver (version compatibility)                │
+│  ├─ Loader Registry (multi-language support)                   │
+│  └─ Event Bus (inter-module communication)                     │
+├─────────────────────────────────────────────────────────────────┤
+│  Security and Sandboxing Layer                                 │
+│  ├─ Security Scanner (vulnerability detection)                 │
+│  ├─ Sandbox Manager (isolation enforcement)                    │
+│  ├─ Resource Monitor (usage tracking)                          │
+│  └─ Permission Enforcer (access control)                       │
+├─────────────────────────────────────────────────────────────────┤
+│  Storage and Marketplace Layer                                 │
+│  ├─ Module Repository (PostgreSQL)                             │
+│  ├─ Marketplace Client (external API)                          │
+│  ├─ Payment Processor (multi-provider)                         │
+│  └─ Analytics Engine (usage tracking)                          │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-1. **HTTP Server Mode** (`server`): REST API endpoints for module management
-2. **Temporal Worker Mode** (`worker`): Executes workflows and activities
-3. **Marketplace Indexer** (`indexer`): Synchronizes marketplace data
-4. **Security Scanner** (`scanner`): Performs security scans
+## Quick Start
 
-### Database Schema
-- **modules**: Core module information and metadata
-- **module_installations**: Per-tenant module installations
-- **module_dependencies**: Module dependency relationships
-- **module_versions**: Version history and compatibility
-- **module_marketplace**: Marketplace-specific data
-- **module_workflows**: Workflow execution tracking
-- **module_security_scans**: Security scan results
-- **module_sandbox**: Sandbox configurations and monitoring
+### Prerequisites
 
-### Temporal Workflows
+- Rust 1.88+
+- PostgreSQL 14+
+- Redis 6+
+- Temporal Server
+- Docker (for container sandboxing)
 
-#### Installation Workflow
-1. Validate module and permissions
-2. Download and verify package
-3. Perform security scan
-4. Install dependencies
-5. Deploy module files
-6. Configure sandbox
-7. Register installation
-8. Activate module (optional)
+### Installation
 
-#### Update Workflow
-1. Validate update request
-2. Create backup (optional)
-3. Download new version
-4. Apply update with migration
-5. Rollback on failure (optional)
+1. Clone the repository:
+```bash
+git clone https://github.com/adxcore/adx-core.git
+cd adx-core/services/module-service
+```
 
-#### Uninstallation Workflow
-1. Validate uninstallation
-2. Deactivate module
-3. Clean up data (optional)
-4. Remove installation
-5. Update status
+2. Install dependencies:
+```bash
+cargo build
+```
 
-## API Endpoints
+3. Set up the database:
+```bash
+# Create database
+createdb adx_core_modules
 
-### Module Management
-- `GET /api/v1/modules` - List modules
-- `POST /api/v1/modules` - Create module
-- `GET /api/v1/modules/{id}` - Get module details
-- `PUT /api/v1/modules/{id}` - Update module
-- `DELETE /api/v1/modules/{id}` - Delete module
-- `POST /api/v1/modules/search` - Search modules
+# Run migrations (handled automatically on startup)
+```
 
-### Installation Management
-- `GET /api/v1/installations` - List installations
-- `POST /api/v1/installations` - Install module
-- `GET /api/v1/installations/{id}` - Get installation
-- `DELETE /api/v1/installations/{id}` - Uninstall module
-- `POST /api/v1/installations/{id}/activate` - Activate module
-- `POST /api/v1/installations/{id}/deactivate` - Deactivate module
+4. Configure the service:
+```bash
+cp config/default.toml config/local.toml
+# Edit config/local.toml with your settings
+```
 
-### Marketplace
-- `GET /api/v1/marketplace/modules` - Browse marketplace
-- `POST /api/v1/marketplace/search` - Search marketplace
-- `GET /api/v1/marketplace/featured` - Featured modules
-- `GET /api/v1/marketplace/categories` - Module categories
+5. Start the service:
+```bash
+# HTTP server mode
+cargo run
 
-### Workflows
-- `POST /api/v1/workflows/install` - Start installation workflow
-- `POST /api/v1/workflows/update` - Start update workflow
-- `POST /api/v1/workflows/uninstall` - Start uninstallation workflow
-- `GET /api/v1/workflows/{id}/status` - Get workflow status
-- `POST /api/v1/workflows/{id}/cancel` - Cancel workflow
+# Temporal worker mode
+cargo run -- worker
+```
 
-### Security
-- `POST /api/v1/security/scan` - Initiate security scan
-- `GET /api/v1/security/scans/{id}` - Get scan results
-- `GET /api/v1/security/vulnerabilities` - List vulnerabilities
+### Configuration
 
-### SDK
-- `GET /api/v1/sdk/templates` - List module templates
-- `POST /api/v1/sdk/templates/{name}` - Create from template
-- `POST /api/v1/sdk/validate` - Validate module
-- `POST /api/v1/sdk/build` - Build module
-- `POST /api/v1/sdk/test` - Test module
-- `POST /api/v1/sdk/package` - Package module
-- `POST /api/v1/sdk/publish` - Publish module
+The service can be configured via environment variables or TOML files:
 
-## Configuration
-
-### Environment Variables
-- `MODULE_SERVICE_HOST` - Server host (default: 0.0.0.0)
-- `MODULE_SERVICE_PORT` - Server port (default: 8086)
-- `DATABASE_URL` - PostgreSQL connection string
-- `TEMPORAL_SERVER_URL` - Temporal server URL
-- `REDIS_URL` - Redis connection string
-- `MARKETPLACE_ENABLED` - Enable marketplace integration
-- `SANDBOX_ENABLED` - Enable module sandboxing
-- `SECURITY_SCAN_ENABLED` - Enable security scanning
-
-### Service Configuration
 ```toml
 [server]
 host = "0.0.0.0"
 port = 8086
+max_connections = 1000
 
 [database]
-url = "postgresql://user:pass@localhost/adx_core"
-max_connections = 10
+url = "postgresql://localhost:5432/adx_core_modules"
+max_connections = 20
 
 [temporal]
 server_url = "localhost:7233"
-namespace = "default"
-task_queue = "module-task-queue"
+namespace = "adx-core"
+task_queue = "module-service"
 
 [marketplace]
-enabled = true
-api_url = "https://marketplace.adxcore.com"
+base_url = "https://marketplace.adxcore.com"
+api_key = "your-api-key"
+enable_analytics = true
 
 [sandbox]
-enabled = true
-max_memory_mb = 512
-max_cpu_percent = 50.0
-network_isolation = true
+default_isolation_level = "process"
+max_sandboxes = 100
+enable_wasm = true
+enable_containers = true
 
 [security]
-scan_enabled = true
-signature_verification = true
+enable_security_scanning = true
+min_security_score = 70
 ```
 
-## Development
+## API Reference
 
-### Running the Service
-```bash
-# Start HTTP server
-cargo run --bin module-service server
+### Module Management
 
-# Start Temporal worker
-cargo run --bin module-service worker
+#### Install Module
+```http
+POST /api/v1/modules/install
+Content-Type: application/json
 
-# Start marketplace indexer
-cargo run --bin module-service indexer
-
-# Start security scanner
-cargo run --bin module-service scanner
-```
-
-### Testing
-```bash
-# Run unit tests
-cargo test --lib
-
-# Run integration tests
-cargo test --test integration_tests
-
-# Run workflow tests
-cargo test --test workflow_tests
-```
-
-### Database Migrations
-```bash
-# Install sqlx-cli
-cargo install sqlx-cli
-
-# Run migrations
-sqlx migrate run
-
-# Create new migration
-sqlx migrate add create_new_table
-```
-
-## Module Development
-
-### Creating a Module
-1. Use the SDK to create a module template
-2. Implement module functionality
-3. Add tests and documentation
-4. Build and package the module
-5. Publish to marketplace
-
-### Module Structure
-```
-my-module/
-├── manifest.json          # Module metadata
-├── src/
-│   ├── index.js          # Main entry point
-│   ├── activities.js     # Temporal activities
-│   └── workflows.js      # Temporal workflows
-├── frontend/
-│   ├── components/       # React components
-│   └── routes.js         # Frontend routes
-├── tests/
-│   └── module.test.js    # Module tests
-└── README.md             # Module documentation
-```
-
-### Module Manifest
-```json
 {
-  "name": "my-module",
+  "module_id": "example-module",
   "version": "1.0.0",
-  "description": "My custom module",
-  "author": {
-    "name": "Developer Name",
-    "email": "dev@example.com"
-  },
-  "adxCore": {
-    "minVersion": "2.0.0"
-  },
-  "permissions": [
-    "database:read",
-    "api:external"
-  ],
-  "extensionPoints": {
-    "backend": {
-      "activities": ["./src/activities.js"],
-      "workflows": ["./src/workflows.js"]
-    },
-    "frontend": {
-      "components": ["./frontend/components.js"]
+  "tenant_id": "tenant-123",
+  "user_id": "user-456",
+  "configuration": {},
+  "auto_activate": true
+}
+```
+
+#### Update Module
+```http
+PUT /api/v1/modules/{instance_id}/update
+Content-Type: application/json
+
+{
+  "target_version": "1.1.0",
+  "preserve_config": true,
+  "backup_current": true
+}
+```
+
+#### Uninstall Module
+```http
+DELETE /api/v1/modules/{instance_id}/uninstall
+Content-Type: application/json
+
+{
+  "cleanup_data": true,
+  "backup_data": true
+}
+```
+
+#### List Tenant Modules
+```http
+GET /api/v1/tenants/{tenant_id}/modules
+```
+
+### Marketplace
+
+#### Search Modules
+```http
+POST /api/v1/marketplace/search
+Content-Type: application/json
+
+{
+  "query": "analytics",
+  "categories": ["Analytics", "BusinessManagement"],
+  "sort_by": "Rating",
+  "limit": 20,
+  "offset": 0
+}
+```
+
+#### Get Featured Modules
+```http
+GET /api/v1/marketplace/featured
+```
+
+#### Purchase Module
+```http
+POST /api/v1/marketplace/purchase
+Content-Type: application/json
+
+{
+  "module_id": "premium-analytics",
+  "version": "2.0.0",
+  "tenant_id": "tenant-123",
+  "user_id": "user-456",
+  "payment_method": {
+    "CreditCard": {
+      "token": "card-token-123"
     }
   }
 }
 ```
 
+### Workflow Operations
+
+#### Install Module (Workflow)
+```http
+POST /api/v1/workflows/install-module
+Content-Type: application/json
+
+{
+  "module_id": "complex-module",
+  "tenant_id": "tenant-123",
+  "user_id": "user-456",
+  "auto_activate": true
+}
+```
+
+Response for long-running operations:
+```json
+{
+  "type": "Asynchronous",
+  "operation_id": "workflow-123",
+  "status_url": "/api/v1/workflows/workflow-123/status",
+  "estimated_duration_seconds": 300
+}
+```
+
+#### Check Workflow Status
+```http
+GET /api/v1/workflows/{operation_id}/status
+```
+
+## Module Development
+
+### Creating a Module
+
+1. **Define Module Metadata**:
+```rust
+use adx_module_sdk::*;
+
+let metadata = ModuleMetadata {
+    id: "my-awesome-module".to_string(),
+    name: "My Awesome Module".to_string(),
+    version: Version::new(1, 0, 0),
+    description: "An awesome module for ADX Core".to_string(),
+    author: ModuleAuthor {
+        name: "Your Name".to_string(),
+        email: Some("you@example.com".to_string()),
+        // ...
+    },
+    // ...
+};
+```
+
+2. **Implement Module Trait**:
+```rust
+use adx_module_sdk::*;
+
+pub struct MyAwesomeModule {
+    base: BaseModule,
+}
+
+#[async_trait]
+impl AdxModule for MyAwesomeModule {
+    async fn initialize(&mut self, config: Value) -> ModuleResult<()> {
+        self.base.sdk().logger.info("Initializing My Awesome Module");
+        
+        // Custom initialization logic
+        self.setup_database().await?;
+        self.register_workflows().await?;
+        
+        self.base.initialize(config).await
+    }
+
+    async fn start(&mut self) -> ModuleResult<()> {
+        self.base.sdk().logger.info("Starting My Awesome Module");
+        
+        // Start background tasks
+        self.start_background_processor().await?;
+        
+        self.base.start().await
+    }
+
+    // Implement other required methods...
+}
+```
+
+3. **Add Extension Points**:
+```rust
+impl MyAwesomeModule {
+    pub fn new() -> Self {
+        let mut module = Self {
+            base: BaseModule::new(metadata, manifest),
+        };
+
+        // Register UI components
+        module.base.sdk_mut().ui
+            .add_page("/my-module", UIComponent {
+                name: "MyModulePage".to_string(),
+                component_type: UIComponentType::Page,
+                props: HashMap::new(),
+                permissions: vec!["module:my-module:read".to_string()],
+            })
+            .add_widget("my-widget", UIComponent {
+                name: "MyWidget".to_string(),
+                component_type: UIComponentType::Widget,
+                props: HashMap::new(),
+                permissions: vec![],
+            });
+
+        // Register workflows
+        module.base.sdk_mut().workflows
+            .add_workflow("process_data", WorkflowDefinition {
+                name: "process_data".to_string(),
+                description: "Process module data".to_string(),
+                input_schema: serde_json::json!({}),
+                output_schema: serde_json::json!({}),
+                timeout_seconds: 300,
+                retry_policy: RetryPolicy {
+                    max_attempts: 3,
+                    initial_interval_seconds: 1,
+                    backoff_coefficient: 2.0,
+                    max_interval_seconds: 60,
+                },
+            });
+
+        module
+    }
+}
+```
+
+4. **Build and Package**:
+```bash
+# Build the module
+cargo build --release
+
+# Create module package
+adx-module-cli package --manifest manifest.json --output my-awesome-module.adx
+```
+
+### Module SDK Features
+
+The Module SDK provides comprehensive utilities for module development:
+
+#### Logging
+```rust
+// Structured logging with module context
+self.sdk().logger.info("Processing user data");
+self.sdk().logger.warn("Rate limit approaching");
+self.sdk().logger.error("Failed to connect to external service");
+```
+
+#### Configuration Management
+```rust
+// Get configuration values
+let api_key: String = self.sdk().config.get_typed("api_key").await?
+    .ok_or_else(|| ModuleError::ConfigurationError("API key required".to_string()))?;
+
+// Set configuration values
+self.sdk().config.set_typed("last_sync", chrono::Utc::now()).await?;
+```
+
+#### Storage
+```rust
+// Store module data
+let data = serde_json::to_vec(&my_data)?;
+self.sdk().storage.store("user_preferences", &data).await?;
+
+// Retrieve module data
+if let Some(data) = self.sdk().storage.retrieve("user_preferences").await? {
+    let preferences: UserPreferences = serde_json::from_slice(&data)?;
+}
+```
+
+#### HTTP Client
+```rust
+// Make HTTP requests with built-in security and rate limiting
+let response = self.sdk().http.get("https://api.example.com/data").await?;
+let data: ApiResponse = response.json().await?;
+
+// POST with JSON body
+let response = self.sdk().http.post("https://api.example.com/webhook", 
+    serde_json::json!({"event": "user_created", "user_id": user_id})
+).await?;
+```
+
+#### Event Bus
+```rust
+// Emit events
+self.sdk().events.emit("user:created", serde_json::json!({
+    "user_id": user_id,
+    "tenant_id": tenant_id
+})).await?;
+
+// Subscribe to events
+self.sdk().events.subscribe("tenant:switched", Box::new(|data| {
+    // Handle tenant switch event
+    Ok(())
+})).await?;
+```
+
 ## Security
 
-### Security Scanning
-- **Static Analysis**: Code pattern analysis for vulnerabilities
-- **Dependency Scanning**: Known vulnerability database checks
-- **Malware Detection**: Signature-based malware scanning
-- **License Compliance**: License compatibility verification
-
 ### Sandboxing
-- **Resource Limits**: CPU, memory, storage constraints
-- **Network Isolation**: Controlled network access
-- **File System Restrictions**: Limited file system access
-- **Process Isolation**: Separate process execution
+
+The module system provides multiple levels of isolation:
+
+1. **No Isolation**: Direct execution (for trusted modules)
+2. **Process Isolation**: Separate process with resource limits
+3. **Container Isolation**: Docker container with network and filesystem restrictions
+4. **WASM Isolation**: WebAssembly runtime with capability-based security
+
+### Security Scanning
+
+All modules undergo comprehensive security scanning:
+
+- **Static Analysis**: Code analysis for vulnerabilities and malicious patterns
+- **Dependency Scanning**: Known vulnerability detection in dependencies
+- **Malware Detection**: Signature-based malware detection
+- **Configuration Analysis**: Security policy validation
 
 ### Permission System
-- `database:read` - Read database access
-- `database:write` - Write database access
-- `api:external` - External API calls
-- `file:read` - File system read access
-- `file:write` - File system write access
-- `workflow:execute` - Execute workflows
-- `tenant:data` - Access tenant data
-- `user:data` - Access user data
 
-## Monitoring
+Modules must declare required permissions:
+
+```json
+{
+  "permissions": [
+    "database:read:user_data",
+    "database:write:module_data",
+    "network:access:api.example.com",
+    "file:read:/tmp/module_cache",
+    "workflow:execute:data_processing"
+  ]
+}
+```
+
+## Monitoring and Observability
 
 ### Health Checks
-- `GET /health` - Service health status
-- `GET /ready` - Service readiness check
+
+```http
+GET /health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "version": "1.0.0"
+}
+```
+
+### Module Health
+
+```http
+GET /api/v1/modules/{instance_id}/health
+```
+
+### Resource Usage
+
+```http
+GET /api/v1/modules/{instance_id}/resources
+```
 
 ### Metrics
-- Module installation success/failure rates
-- Workflow execution times
-- Security scan results
-- Resource usage per module
-- Marketplace synchronization status
 
-### Logging
-- Structured logging with JSON format
-- Correlation IDs for request tracing
-- Security event logging
-- Performance metrics logging
+The service exposes Prometheus metrics on port 9090:
 
-## Troubleshooting
+- `module_installations_total`
+- `module_execution_duration_seconds`
+- `module_resource_usage`
+- `security_scan_results`
+- `workflow_executions_total`
 
-### Common Issues
-1. **Module Installation Fails**: Check security scan results and dependencies
-2. **Workflow Timeout**: Increase timeout configuration or optimize workflow
-3. **Sandbox Violations**: Review resource limits and permissions
-4. **Marketplace Sync Issues**: Check API credentials and network connectivity
+## Development
 
-### Debug Mode
-Set `RUST_LOG=debug` to enable detailed logging for troubleshooting.
+### Running Tests
 
-## Contributing
+```bash
+# Unit tests
+cargo test --lib
+
+# Integration tests
+cargo test --test integration_tests
+
+# Workflow tests
+cargo test --test workflow_tests
+
+# All tests
+cargo test
+```
+
+### Development Mode
+
+```bash
+# Start with hot reloading
+cargo watch -x run
+
+# Start with debug logging
+RUST_LOG=debug cargo run
+```
+
+### Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
+3. Make your changes
+4. Add tests
+5. Run the test suite
+6. Submit a pull request
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+- Documentation: https://docs.adxcore.com/modules
+- Issues: https://github.com/adxcore/adx-core/issues
+- Discussions: https://github.com/adxcore/adx-core/discussions
+- Email: support@adxcore.com

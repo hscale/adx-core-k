@@ -1,0 +1,142 @@
+name: Tauri Desktop Cross-Platform Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'src-tauri/**'
+      - '.github/workflows/tauri-desktop-tests.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'src-tauri/**'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test-tauri-desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-20.04, windows-latest]
+        include:
+          - platform: macos-latest
+            os: macOS
+            arch: x64
+          - platform: ubuntu-20.04
+            os: Linux
+            arch: x64
+          - platform: windows-latest
+            os: Windows
+            arch: x64
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+    - name: Rust cache
+      uses: swatinem/rust-cache@v2
+      with:
+        workspaces: './src-tauri -> target'
+
+    - name: Install dependencies (Ubuntu only)
+      if: matrix.platform == 'ubuntu-20.04'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+
+    - name: Install frontend dependencies
+      run: npm ci
+
+    - name: Build frontend for desktop
+      run: npm run build:desktop
+
+    - name: Install Tauri CLI
+      run: cargo install tauri-cli
+
+    - name: Run Tauri unit tests
+      run: cargo test --manifest-path=src-tauri/Cargo.toml
+
+    - name: Build Tauri app (debug)
+      run: cargo tauri build --debug
+      env:
+        TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+        TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+    - name: Run desktop integration tests
+      run: npm run test:desktop:integration
+      env:
+        PLATFORM: ${{ matrix.os }}
+        ARCH: ${{ matrix.arch }}
+
+    - name: Test app startup and basic functionality
+      run: npm run test:desktop:e2e
+      env:
+        PLATFORM: ${{ matrix.os }}
+        HEADLESS: true
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.arch }}
+        path: |
+          test-results/
+          screenshots/
+          logs/
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: tauri-app-${{ matrix.os }}-${{ matrix.arch }}
+        path: |
+          src-tauri/target/release/bundle/
+        retention-days: 5
+
+  test-cross-platform-compatibility:
+    needs: test-tauri-desktop
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download all platform artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+
+    - name: Run cross-platform compatibility tests
+      run: |
+        npm ci
+        npm run test:cross-platform:compatibility
+      env:
+        ARTIFACTS_PATH: artifacts/
+
+    - name: Generate compatibility report
+      run: npm run generate:compatibility-report
+
+    - name: Upload compatibility report
+      uses: actions/upload-artifact@v4
+      with:
+        name: cross-platform-compatibility-report
+        path: reports/compatibility-report.html

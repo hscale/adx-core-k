@@ -1,0 +1,177 @@
+name: Mobile Application Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'src-tauri/**'
+      - 'mobile/**'
+      - '.github/workflows/mobile-tests.yml'
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-ios:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: aarch64-apple-ios,x86_64-apple-ios
+
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+
+    - name: Install iOS dependencies
+      run: |
+        npm ci
+        cargo install tauri-cli
+        rustup target add aarch64-apple-ios x86_64-apple-ios
+
+    - name: Build for iOS simulator
+      run: |
+        npm run build:mobile:ios
+        cargo tauri ios build --target x86_64-apple-ios
+
+    - name: Start iOS Simulator
+      run: |
+        xcrun simctl boot "iPhone 14" || true
+        xcrun simctl list devices
+
+    - name: Install app on simulator
+      run: |
+        xcrun simctl install booted src-tauri/gen/apple/build/Build/Products/Debug-iphonesimulator/ADX\ Core.app
+
+    - name: Run iOS integration tests
+      run: npm run test:mobile:ios
+      env:
+        PLATFORM: iOS
+        SIMULATOR: iPhone 14
+
+    - name: Capture iOS screenshots
+      if: failure()
+      run: |
+        mkdir -p screenshots/ios
+        xcrun simctl io booted screenshot screenshots/ios/failure-screenshot.png
+
+    - name: Upload iOS test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ios-test-results
+        path: |
+          test-results/ios/
+          screenshots/ios/
+          logs/ios/
+
+  test-android:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install Android dependencies
+      run: |
+        npm ci
+        cargo install tauri-cli
+        rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+
+    - name: Setup Android NDK
+      run: |
+        sdkmanager "ndk;25.1.8937393"
+        echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.1.8937393" >> $GITHUB_ENV
+
+    - name: Build for Android
+      run: |
+        npm run build:mobile:android
+        cargo tauri android build --target aarch64-linux-android
+      env:
+        ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+
+    - name: Start Android Emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 33
+        target: google_apis
+        arch: x86_64
+        profile: Nexus 6
+        script: |
+          adb install src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk
+          npm run test:mobile:android
+
+    - name: Upload Android test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: android-test-results
+        path: |
+          test-results/android/
+          screenshots/android/
+          logs/android/
+
+  test-mobile-compatibility:
+    needs: [test-ios, test-android]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download test results
+      uses: actions/download-artifact@v4
+      with:
+        path: mobile-test-results/
+
+    - name: Run mobile compatibility analysis
+      run: |
+        npm ci
+        npm run test:mobile:compatibility-analysis
+      env:
+        TEST_RESULTS_PATH: mobile-test-results/
+
+    - name: Generate mobile compatibility report
+      run: npm run generate:mobile-compatibility-report
+
+    - name: Upload compatibility report
+      uses: actions/upload-artifact@v4
+      with:
+        name: mobile-compatibility-report
+        path: reports/mobile-compatibility-report.html

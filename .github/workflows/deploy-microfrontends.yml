@@ -1,0 +1,372 @@
+name: Deploy Micro-Frontends
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - '.github/workflows/deploy-microfrontends.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      apps:
+        description: 'Apps to deploy (comma-separated, or "all")'
+        required: true
+        default: 'all'
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changed-apps: ${{ steps.changes.outputs.changed-apps }}
+      all-apps: ${{ steps.changes.outputs.all-apps }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+
+    - name: Detect app changes
+      id: changes
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event.inputs.apps }}" = "all" ]; then
+            echo "changed-apps=shell,auth,tenant,file,user,workflow,module" >> $GITHUB_OUTPUT
+          else
+            echo "changed-apps=${{ github.event.inputs.apps }}" >> $GITHUB_OUTPUT
+          fi
+        else
+          # Detect changed apps based on file changes
+          CHANGED_APPS=""
+          
+          for app in shell auth tenant file user workflow module; do
+            if git diff --name-only HEAD~1 HEAD | grep -q "apps/$app/"; then
+              CHANGED_APPS="$CHANGED_APPS,$app"
+            fi
+          done
+          
+          # Also check for shared package changes that affect all apps
+          if git diff --name-only HEAD~1 HEAD | grep -q "packages/"; then
+            CHANGED_APPS="shell,auth,tenant,file,user,workflow,module"
+          fi
+          
+          echo "changed-apps=${CHANGED_APPS#,}" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "all-apps=shell,auth,tenant,file,user,workflow,module" >> $GITHUB_OUTPUT
+
+  build-and-deploy:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.changed-apps != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: ${{ fromJson(format('["{0}"]', needs.detect-changes.outputs.changed-apps)) }}
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build shared packages
+      run: |
+        npm run build --workspace=packages/design-system
+        npm run build --workspace=packages/shared-context
+        npm run build --workspace=packages/event-bus
+        npm run build --workspace=packages/i18n
+
+    - name: Set environment variables
+      run: |
+        echo "VITE_API_URL=${{ vars.API_URL }}" >> $GITHUB_ENV
+        echo "VITE_ENVIRONMENT=${{ github.event.inputs.environment || 'staging' }}" >> $GITHUB_ENV
+        echo "VITE_VERSION=${{ github.sha }}" >> $GITHUB_ENV
+        echo "VITE_BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
+    - name: Build micro-frontend
+      run: |
+        if [ "${{ matrix.app }}" = "shell" ]; then
+          npm run build --workspace=apps/shell
+        else
+          npm run build --workspace=apps/${{ matrix.app }}
+        fi
+      env:
+        NODE_ENV: production
+
+    - name: Run build verification
+      run: |
+        # Verify build artifacts exist
+        if [ "${{ matrix.app }}" = "shell" ]; then
+          BUILD_DIR="apps/shell/dist"
+        else
+          BUILD_DIR="apps/${{ matrix.app }}/dist"
+        fi
+        
+        if [ ! -d "$BUILD_DIR" ]; then
+          echo "Build directory $BUILD_DIR does not exist"
+          exit 1
+        fi
+        
+        if [ ! -f "$BUILD_DIR/index.html" ]; then
+          echo "index.html not found in $BUILD_DIR"
+          exit 1
+        fi
+        
+        # Check bundle size
+        BUNDLE_SIZE=$(du -sh $BUILD_DIR | cut -f1)
+        echo "Bundle size for ${{ matrix.app }}: $BUNDLE_SIZE"
+        
+        # Verify Module Federation remoteEntry.js exists (except for shell)
+        if [ "${{ matrix.app }}" != "shell" ] && [ ! -f "$BUILD_DIR/assets/remoteEntry.js" ]; then
+          echo "remoteEntry.js not found for micro-frontend ${{ matrix.app }}"
+          exit 1
+        fi
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ vars.AWS_REGION }}
+
+    - name: Deploy to S3
+      run: |
+        if [ "${{ matrix.app }}" = "shell" ]; then
+          BUILD_DIR="apps/shell/dist"
+          S3_PATH="s3://${{ vars.S3_BUCKET }}/${{ github.event.inputs.environment || 'staging' }}/"
+        else
+          BUILD_DIR="apps/${{ matrix.app }}/dist"
+          S3_PATH="s3://${{ vars.S3_BUCKET }}/${{ github.event.inputs.environment || 'staging' }}/apps/${{ matrix.app }}/"
+        fi
+        
+        # Sync files to S3
+        aws s3 sync $BUILD_DIR $S3_PATH --delete --cache-control "public, max-age=31536000" --exclude "*.html"
+        
+        # Upload HTML files with no-cache headers
+        aws s3 sync $BUILD_DIR $S3_PATH --delete --cache-control "no-cache" --include "*.html"
+        
+        # Set special cache headers for remoteEntry.js (Module Federation)
+        if [ "${{ matrix.app }}" != "shell" ]; then
+          aws s3 cp $BUILD_DIR/assets/remoteEntry.js $S3_PATH/assets/remoteEntry.js --cache-control "no-cache"
+        fi
+
+    - name: Invalidate CloudFront cache
+      run: |
+        if [ "${{ matrix.app }}" = "shell" ]; then
+          # Invalidate root paths for shell app
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/${{ github.event.inputs.environment || 'staging' }}/*"
+        else
+          # Invalidate specific app paths
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/${{ github.event.inputs.environment || 'staging' }}/apps/${{ matrix.app }}/*"
+        fi
+
+    - name: Update deployment registry
+      run: |
+        # Update deployment registry with new version info
+        cat > deployment-info.json << EOF
+        {
+          "app": "${{ matrix.app }}",
+          "version": "${{ github.sha }}",
+          "environment": "${{ github.event.inputs.environment || 'staging' }}",
+          "deployedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "deployedBy": "${{ github.actor }}",
+          "buildNumber": "${{ github.run_number }}",
+          "branch": "${{ github.ref_name }}",
+          "commit": {
+            "sha": "${{ github.sha }}",
+            "message": "${{ github.event.head_commit.message }}",
+            "author": "${{ github.event.head_commit.author.name }}"
+          }
+        }
+        EOF
+        
+        # Upload deployment info
+        aws s3 cp deployment-info.json s3://${{ vars.S3_BUCKET }}/${{ github.event.inputs.environment || 'staging' }}/deployments/${{ matrix.app }}-latest.json
+
+    - name: Run smoke tests
+      run: |
+        # Wait for deployment to be available
+        sleep 30
+        
+        if [ "${{ matrix.app }}" = "shell" ]; then
+          URL="https://${{ vars.CLOUDFRONT_DOMAIN }}/${{ github.event.inputs.environment || 'staging' }}/"
+        else
+          URL="https://${{ vars.CLOUDFRONT_DOMAIN }}/${{ github.event.inputs.environment || 'staging' }}/apps/${{ matrix.app }}/"
+        fi
+        
+        echo "Running smoke test for $URL"
+        
+        # Check if the app loads
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+        if [ "$HTTP_STATUS" != "200" ]; then
+          echo "Smoke test failed: HTTP $HTTP_STATUS"
+          exit 1
+        fi
+        
+        # Check if remoteEntry.js is accessible (for micro-frontends)
+        if [ "${{ matrix.app }}" != "shell" ]; then
+          REMOTE_ENTRY_URL="${URL}assets/remoteEntry.js"
+          REMOTE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$REMOTE_ENTRY_URL")
+          if [ "$REMOTE_STATUS" != "200" ]; then
+            echo "remoteEntry.js not accessible: HTTP $REMOTE_STATUS"
+            exit 1
+          fi
+        fi
+        
+        echo "Smoke test passed for ${{ matrix.app }}"
+
+    - name: Generate deployment report
+      run: |
+        mkdir -p reports
+        cat > reports/deployment-${{ matrix.app }}.md << EOF
+        # Deployment Report: ${{ matrix.app }}
+        
+        ## Deployment Details
+        - **App**: ${{ matrix.app }}
+        - **Environment**: ${{ github.event.inputs.environment || 'staging' }}
+        - **Version**: ${{ github.sha }}
+        - **Deployed At**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+        - **Deployed By**: ${{ github.actor }}
+        - **Build Number**: ${{ github.run_number }}
+        
+        ## URLs
+        EOF
+        
+        if [ "${{ matrix.app }}" = "shell" ]; then
+          echo "- **App URL**: https://${{ vars.CLOUDFRONT_DOMAIN }}/${{ github.event.inputs.environment || 'staging' }}/" >> reports/deployment-${{ matrix.app }}.md
+        else
+          echo "- **App URL**: https://${{ vars.CLOUDFRONT_DOMAIN }}/${{ github.event.inputs.environment || 'staging' }}/apps/${{ matrix.app }}/" >> reports/deployment-${{ matrix.app }}.md
+          echo "- **Remote Entry**: https://${{ vars.CLOUDFRONT_DOMAIN }}/${{ github.event.inputs.environment || 'staging' }}/apps/${{ matrix.app }}/assets/remoteEntry.js" >> reports/deployment-${{ matrix.app }}.md
+        fi
+        
+        cat >> reports/deployment-${{ matrix.app }}.md << EOF
+        
+        ## Build Information
+        - **Node Version**: ${{ env.NODE_VERSION }}
+        - **Build Environment**: production
+        - **Bundle Size**: $(du -sh apps/${{ matrix.app }}/dist | cut -f1)
+        
+        ## Verification
+        - ✅ Build completed successfully
+        - ✅ Files uploaded to S3
+        - ✅ CloudFront cache invalidated
+        - ✅ Smoke test passed
+        EOF
+
+    - name: Upload deployment report
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-report-${{ matrix.app }}
+        path: reports/deployment-${{ matrix.app }}.md
+
+  integration-test:
+    needs: [detect-changes, build-and-deploy]
+    if: needs.build-and-deploy.result == 'success'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Playwright
+      run: npx playwright install
+
+    - name: Run integration tests
+      run: |
+        BASE_URL="https://${{ vars.CLOUDFRONT_DOMAIN }}/${{ github.event.inputs.environment || 'staging' }}"
+        npm run test:e2e:microfrontends
+      env:
+        BASE_URL: https://${{ vars.CLOUDFRONT_DOMAIN }}/${{ github.event.inputs.environment || 'staging' }}
+        ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: integration-test-results
+        path: |
+          test-results/
+          playwright-report/
+
+  notify-deployment:
+    needs: [detect-changes, build-and-deploy, integration-test]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download deployment reports
+      uses: actions/download-artifact@v4
+      with:
+        path: deployment-reports
+        pattern: deployment-report-*
+        merge-multiple: true
+
+    - name: Generate summary
+      run: |
+        echo "# Micro-Frontend Deployment Summary" > deployment-summary.md
+        echo "" >> deployment-summary.md
+        echo "**Environment**: ${{ github.event.inputs.environment || 'staging' }}" >> deployment-summary.md
+        echo "**Deployed Apps**: ${{ needs.detect-changes.outputs.changed-apps }}" >> deployment-summary.md
+        echo "**Status**: ${{ needs.build-and-deploy.result }}" >> deployment-summary.md
+        echo "**Integration Tests**: ${{ needs.integration-test.result }}" >> deployment-summary.md
+        echo "" >> deployment-summary.md
+        
+        if [ -d "deployment-reports" ]; then
+          echo "## Individual App Reports" >> deployment-summary.md
+          for report in deployment-reports/*.md; do
+            if [ -f "$report" ]; then
+              echo "" >> deployment-summary.md
+              cat "$report" >> deployment-summary.md
+              echo "" >> deployment-summary.md
+            fi
+          done
+        fi
+
+    - name: Notify deployment status
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ needs.build-and-deploy.result }}
+        channel: '#deployments'
+        text: |
+          Micro-frontend deployment to ${{ github.event.inputs.environment || 'staging' }} completed
+          Status: ${{ needs.build-and-deploy.result }}
+          Apps deployed: ${{ needs.detect-changes.outputs.changed-apps }}
+          Integration tests: ${{ needs.integration-test.result }}
+          
+          Base URL: https://${{ vars.CLOUDFRONT_DOMAIN }}/${{ github.event.inputs.environment || 'staging' }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: always()

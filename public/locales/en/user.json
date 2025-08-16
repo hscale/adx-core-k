@@ -1,0 +1,50 @@
+{
+  "title": "User Management",
+  "profile": {
+    "title": "User Profile",
+    "personalInfo": "Personal Information",
+    "contactInfo": "Contact Information",
+    "preferences": "Preferences",
+    "updateProfile": "Update Profile",
+    "profileUpdated": "Profile updated successfully"
+  },
+  "list": {
+    "title": "Users",
+    "nameColumn": "Name",
+    "emailColumn": "Email",
+    "roleColumn": "Role",
+    "statusColumn": "Status",
+    "lastActiveColumn": "Last Active",
+    "actionsColumn": "Actions",
+    "searchPlaceholder": "Search users..."
+  },
+  "create": {
+    "title": "Create User",
+    "inviteUser": "Invite User",
+    "sendInvitation": "Send Invitation",
+    "userCreated": "User created successfully",
+    "invitationSent": "Invitation sent successfully"
+  },
+  "roles": {
+    "admin": "Administrator",
+    "manager": "Manager",
+    "member": "Member",
+    "viewer": "Viewer",
+    "guest": "Guest"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "pending": "Pending",
+    "suspended": "Suspended",
+    "invited": "Invited"
+  },
+  "actions": {
+    "editUser": "Edit User",
+    "deactivateUser": "Deactivate User",
+    "activateUser": "Activate User",
+    "deleteUser": "Delete User",
+    "resetPassword": "Reset Password",
+    "resendInvitation": "Resend Invitation"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "title": "Workflow Management",
+  "list": {
+    "title": "Workflows",
+    "nameColumn": "Name",
+    "statusColumn": "Status",
+    "startedColumn": "Started",
+    "durationColumn": "Duration",
+    "actionsColumn": "Actions",
+    "noWorkflows": "No workflows found",
+    "searchPlaceholder": "Search workflows..."
+  },
+  "status": {
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "pending": "Pending",
+    "paused": "Paused"
+  },
+  "actions": {
+    "viewDetails": "View Details",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "pause": "Pause",
+    "resume": "Resume",
+    "restart": "Restart"
+  },
+  "details": {
+    "title": "Workflow Details",
+    "overview": "Overview",
+    "steps": "Steps",
+    "logs": "Logs",
+    "history": "History",
+    "progress": "Progress",
+    "currentStep": "Current Step",
+    "completedSteps": "Completed Steps",
+    "totalSteps": "Total Steps"
+  },
+  "create": {
+    "title": "Create Workflow",
+    "template": "Template",
+    "selectTemplate": "Select Template",
+    "customWorkflow": "Custom Workflow",
+    "workflowName": "Workflow Name",
+    "description": "Description",
+    "createWorkflow": "Create Workflow"
+  }
+}

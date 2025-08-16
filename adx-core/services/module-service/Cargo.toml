@@ -4,61 +4,45 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Core dependencies
 tokio = { version = "1.0", features = ["full"] }
-axum = { version = "0.7", features = ["macros"] }
-tower = "0.4"
-tower-http = { version = "0.4", features = ["cors", "trace"] }
-hyper = "1.0"
-
-# Serialization
+axum = "0.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-# Database
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-
-# Temporal (placeholder - will be replaced with actual SDK)
-# temporal-sdk = "0.1"
-# temporal-sdk-core = "0.1"
-
-# Utilities
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+redis = "0.24"
 anyhow = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# HTTP client
-reqwest = { version = "0.11", features = ["json", "stream"] }
-
-# Configuration
-config = "0.13"
-clap = { version = "4.0", features = ["derive"] }
-
-# Security and validation
-sha2 = "0.10"
-ring = "0.17"
-jsonwebtoken = "9.0"
-validator = { version = "0.16", features = ["derive"] }
-
-# Async utilities
-futures = "0.3"
+tracing-subscriber = "0.3"
+tower = "0.4"
+tower-http = { version = "0.4", features = ["cors", "trace"] }
 async-trait = "0.1"
-
-# Redis for caching
-redis = { version = "0.24", features = ["tokio-comp"] }
-
-# File handling
+libloading = "0.8"
 tar = "0.4"
 flate2 = "1.0"
-zip = "0.6"
+sha2 = "0.10"
+semver = "1.0"
+reqwest = { version = "0.11", features = ["json", "stream"] }
+tempfile = "3.0"
+walkdir = "2.0"
+toml = "0.8"
+jsonschema = "0.17"
+wasmtime = "15.0"
+wasmtime-wasi = "15.0"
+prometheus = "0.13"
+opentelemetry = "0.21"
+config = "0.13"
+
+# Temporal SDK (placeholder - will be replaced with actual SDK)
+temporal-sdk = "0.1"
+temporal-sdk-core = "0.1"
 
 # Shared dependencies
-adx-shared = { path = "../shared" }
+shared = { path = "../shared" }
 
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.12"
-tempfile = "3.0"
+testcontainers = "0.15"

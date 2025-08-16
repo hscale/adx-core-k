@@ -1,0 +1,79 @@
+{
+  "title": "Tenant Management",
+  "switcher": {
+    "title": "Switch Organization",
+    "current": "Current Organization",
+    "available": "Available Organizations",
+    "switchButton": "Switch",
+    "switching": "Switching...",
+    "success": "Successfully switched to {{tenantName}}",
+    "error": "Failed to switch organization"
+  },
+  "create": {
+    "title": "Create Organization",
+    "nameLabel": "Organization Name",
+    "namePlaceholder": "Enter organization name",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Enter organization description",
+    "tierLabel": "Subscription Tier",
+    "createButton": "Create Organization",
+    "success": "Organization created successfully",
+    "errors": {
+      "nameRequired": "Organization name is required",
+      "nameExists": "An organization with this name already exists",
+      "tierRequired": "Please select a subscription tier"
+    }
+  },
+  "settings": {
+    "title": "Organization Settings",
+    "general": "General Settings",
+    "members": "Members",
+    "billing": "Billing",
+    "security": "Security",
+    "integrations": "Integrations",
+    "updateButton": "Update Settings",
+    "success": "Settings updated successfully"
+  },
+  "members": {
+    "title": "Team Members",
+    "inviteButton": "Invite Member",
+    "nameColumn": "Name",
+    "emailColumn": "Email",
+    "roleColumn": "Role",
+    "statusColumn": "Status",
+    "actionsColumn": "Actions",
+    "roles": {
+      "admin": "Administrator",
+      "member": "Member",
+      "viewer": "Viewer"
+    },
+    "statuses": {
+      "active": "Active",
+      "pending": "Pending",
+      "suspended": "Suspended"
+    },
+    "invite": {
+      "title": "Invite Team Member",
+      "emailLabel": "Email Address",
+      "roleLabel": "Role",
+      "messageLabel": "Personal Message (Optional)",
+      "sendButton": "Send Invitation",
+      "success": "Invitation sent successfully"
+    }
+  },
+  "billing": {
+    "title": "Billing & Usage",
+    "currentPlan": "Current Plan",
+    "usage": "Usage",
+    "invoices": "Invoices",
+    "paymentMethod": "Payment Method",
+    "upgradePlan": "Upgrade Plan",
+    "downloadInvoice": "Download",
+    "usage": {
+      "users": "Users",
+      "storage": "Storage",
+      "apiCalls": "API Calls",
+      "workflows": "Workflows"
+    }
+  }
+}

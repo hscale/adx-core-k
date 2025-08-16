@@ -1,0 +1,55 @@
+{
+  "title": "Module Management",
+  "marketplace": {
+    "title": "Module Marketplace",
+    "featured": "Featured Modules",
+    "categories": "Categories",
+    "search": "Search Modules",
+    "install": "Install",
+    "installed": "Installed",
+    "update": "Update Available",
+    "price": "Price",
+    "free": "Free",
+    "rating": "Rating",
+    "downloads": "Downloads"
+  },
+  "installed": {
+    "title": "Installed Modules",
+    "active": "Active",
+    "inactive": "Inactive",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "configure": "Configure",
+    "uninstall": "Uninstall",
+    "update": "Update"
+  },
+  "details": {
+    "title": "Module Details",
+    "description": "Description",
+    "version": "Version",
+    "author": "Author",
+    "compatibility": "Compatibility",
+    "permissions": "Permissions",
+    "changelog": "Changelog",
+    "documentation": "Documentation",
+    "support": "Support"
+  },
+  "installation": {
+    "installing": "Installing...",
+    "success": "Module installed successfully",
+    "error": "Failed to install module",
+    "activating": "Activating...",
+    "activated": "Module activated successfully",
+    "deactivated": "Module deactivated successfully"
+  },
+  "categories": {
+    "productivity": "Productivity",
+    "communication": "Communication",
+    "analytics": "Analytics",
+    "integration": "Integration",
+    "security": "Security",
+    "utilities": "Utilities",
+    "business": "Business",
+    "development": "Development"
+  }
+}

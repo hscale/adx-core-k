@@ -1,0 +1,385 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'adx-core/**'
+      - 'apps/**'
+      - 'bff-services/**'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy (all, api-gateway, auth-service, etc.)'
+        required: true
+        default: 'all'
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api-gateway: ${{ steps.changes.outputs.api-gateway }}
+      auth-service: ${{ steps.changes.outputs.auth-service }}
+      user-service: ${{ steps.changes.outputs.user-service }}
+      file-service: ${{ steps.changes.outputs.file-service }}
+      workflow-service: ${{ steps.changes.outputs.workflow-service }}
+      tenant-service: ${{ steps.changes.outputs.tenant-service }}
+      auth-bff: ${{ steps.changes.outputs.auth-bff }}
+      tenant-bff: ${{ steps.changes.outputs.tenant-bff }}
+      file-bff: ${{ steps.changes.outputs.file-bff }}
+      user-bff: ${{ steps.changes.outputs.user-bff }}
+      workflow-bff: ${{ steps.changes.outputs.workflow-bff }}
+      shell-app: ${{ steps.changes.outputs.shell-app }}
+      auth-app: ${{ steps.changes.outputs.auth-app }}
+      tenant-app: ${{ steps.changes.outputs.tenant-app }}
+      file-app: ${{ steps.changes.outputs.file-app }}
+      user-app: ${{ steps.changes.outputs.user-app }}
+      workflow-app: ${{ steps.changes.outputs.workflow-app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            api-gateway:
+              - 'adx-core/services/api-gateway/**'
+              - 'adx-core/services/shared/**'
+            auth-service:
+              - 'adx-core/services/auth-service/**'
+              - 'adx-core/services/shared/**'
+            user-service:
+              - 'adx-core/services/user-service/**'
+              - 'adx-core/services/shared/**'
+            file-service:
+              - 'adx-core/services/file-service/**'
+              - 'adx-core/services/shared/**'
+            workflow-service:
+              - 'adx-core/services/workflow-service/**'
+              - 'adx-core/services/shared/**'
+            tenant-service:
+              - 'adx-core/services/tenant-service/**'
+              - 'adx-core/services/shared/**'
+            auth-bff:
+              - 'bff-services/auth-bff/**'
+            tenant-bff:
+              - 'bff-services/tenant-bff/**'
+            file-bff:
+              - 'bff-services/file-bff/**'
+            user-bff:
+              - 'bff-services/user-bff/**'
+            workflow-bff:
+              - 'bff-services/workflow-bff/**'
+            shell-app:
+              - 'apps/shell/**'
+              - 'packages/**'
+            auth-app:
+              - 'apps/auth/**'
+              - 'packages/**'
+            tenant-app:
+              - 'apps/tenant/**'
+              - 'packages/**'
+            file-app:
+              - 'apps/file/**'
+              - 'packages/**'
+            user-app:
+              - 'apps/user/**'
+              - 'packages/**'
+            workflow-app:
+              - 'apps/workflow/**'
+              - 'packages/**'
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run security audit
+        run: |
+          chmod +x adx-core/scripts/security/security-audit.sh
+          # Run in test mode to avoid production-specific checks
+          TEST_MODE=true adx-core/scripts/security/security-audit.sh
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-audit-report
+          path: /tmp/security-audit-*/security-audit-*.json
+
+  build-backend-services:
+    needs: [detect-changes, security-scan]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api-gateway, auth-service, user-service, file-service, workflow-service, tenant-service]
+    if: needs.detect-changes.outputs[matrix.service] == 'true' || github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: adx-core/services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-bff-services:
+    needs: [detect-changes, security-scan]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [auth-bff, tenant-bff, file-bff, user-bff, workflow-bff]
+    if: needs.detect-changes.outputs[matrix.service] == 'true' || github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: bff-services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-frontend-apps:
+    needs: [detect-changes, security-scan]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [shell, auth, tenant, file, user, workflow]
+    if: needs.detect-changes.outputs[format('{0}-app', matrix.app)] == 'true' || github.event.inputs.service == 'all' || github.event.inputs.service == format('{0}-app', matrix.app)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build:${{ matrix.app }}
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.app }}-app-build
+          path: apps/${{ matrix.app }}/dist/
+
+  deploy-backend-services:
+    needs: [build-backend-services, detect-changes]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    strategy:
+      matrix:
+        service: [api-gateway, auth-service, user-service, file-service, workflow-service, tenant-service]
+    if: needs.detect-changes.outputs[matrix.service] == 'true' || github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Update image tag in deployment
+          kubectl set image deployment/${{ matrix.service }} \
+            ${{ matrix.service }}=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ github.sha }} \
+            -n adx-core
+
+          # Wait for rollout to complete
+          kubectl rollout status deployment/${{ matrix.service }} -n adx-core --timeout=300s
+
+          # Verify deployment
+          kubectl get pods -l app=${{ matrix.service }} -n adx-core
+
+      - name: Run health checks
+        run: |
+          # Wait for service to be ready
+          sleep 30
+          
+          # Get service endpoint
+          SERVICE_IP=$(kubectl get service ${{ matrix.service }} -n adx-core -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          SERVICE_PORT=$(kubectl get service ${{ matrix.service }} -n adx-core -o jsonpath='{.spec.ports[0].port}')
+          
+          # Health check
+          curl -f "http://${SERVICE_IP}:${SERVICE_PORT}/health" || exit 1
+
+  deploy-bff-services:
+    needs: [build-bff-services, detect-changes]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    strategy:
+      matrix:
+        service: [auth-bff, tenant-bff, file-bff, user-bff, workflow-bff]
+    if: needs.detect-changes.outputs[matrix.service] == 'true' || github.event.inputs.service == 'all' || github.event.inputs.service == matrix.service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl set image deployment/${{ matrix.service }} \
+            ${{ matrix.service }}=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ github.sha }} \
+            -n adx-core
+
+          kubectl rollout status deployment/${{ matrix.service }} -n adx-core --timeout=300s
+
+  deploy-frontend-apps:
+    needs: [build-frontend-apps, detect-changes]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    strategy:
+      matrix:
+        app: [shell, auth, tenant, file, user, workflow]
+    if: needs.detect-changes.outputs[format('{0}-app', matrix.app)] == 'true' || github.event.inputs.service == 'all' || github.event.inputs.service == format('{0}-app', matrix.app)
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ matrix.app }}-app-build
+          path: ./dist
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync ./dist/ s3://adx-core-frontend-${{ github.event.inputs.environment || 'production' }}/${{ matrix.app }}/ --delete
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/${{ matrix.app }}/*"
+
+  run-smoke-tests:
+    needs: [deploy-backend-services, deploy-bff-services, deploy-frontend-apps]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    if: always() && (needs.deploy-backend-services.result == 'success' || needs.deploy-bff-services.result == 'success' || needs.deploy-frontend-apps.result == 'success')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run smoke tests
+        run: npm run test:smoke
+        env:
+          TEST_URL: ${{ secrets.PRODUCTION_URL }}
+          API_URL: ${{ secrets.PRODUCTION_API_URL }}
+
+  notify-deployment:
+    needs: [run-smoke-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Create deployment record
+        run: |
+          curl -X POST "${{ secrets.DEPLOYMENT_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "environment": "${{ github.event.inputs.environment || 'production' }}",
+              "version": "${{ github.sha }}",
+              "status": "${{ job.status }}",
+              "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+              "services": "${{ github.event.inputs.service || 'all' }}"
+            }'

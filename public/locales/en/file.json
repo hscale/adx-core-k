@@ -1,0 +1,49 @@
+{
+  "title": "File Management",
+  "upload": {
+    "title": "Upload Files",
+    "dragDrop": "Drag and drop files here, or click to select",
+    "selectFiles": "Select Files",
+    "uploading": "Uploading...",
+    "success": "Files uploaded successfully",
+    "error": "Failed to upload files",
+    "maxSize": "Maximum file size: {{size}}",
+    "allowedTypes": "Allowed file types: {{types}}"
+  },
+  "list": {
+    "title": "Files",
+    "nameColumn": "Name",
+    "sizeColumn": "Size",
+    "modifiedColumn": "Modified",
+    "actionsColumn": "Actions",
+    "noFiles": "No files found",
+    "searchPlaceholder": "Search files..."
+  },
+  "actions": {
+    "download": "Download",
+    "share": "Share",
+    "rename": "Rename",
+    "move": "Move",
+    "copy": "Copy",
+    "delete": "Delete",
+    "preview": "Preview"
+  },
+  "sharing": {
+    "title": "Share File",
+    "publicLink": "Public Link",
+    "generateLink": "Generate Link",
+    "copyLink": "Copy Link",
+    "linkCopied": "Link copied to clipboard",
+    "permissions": "Permissions",
+    "viewOnly": "View Only",
+    "canEdit": "Can Edit",
+    "canDownload": "Can Download",
+    "expiresAt": "Expires At",
+    "neverExpires": "Never Expires"
+  },
+  "folders": {
+    "createFolder": "Create Folder",
+    "folderName": "Folder Name",
+    "newFolder": "New Folder"
+  }
+}

@@ -1,0 +1,295 @@
+name: Automated Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        type: choice
+        options:
+        - staging
+        - production
+      rollback_target:
+        description: 'Rollback target (previous, version, or commit SHA)'
+        required: true
+        default: 'previous'
+      component:
+        description: 'Component to rollback'
+        required: true
+        type: choice
+        options:
+        - all
+        - backend
+        - frontend
+        - api-gateway
+        - auth-service
+        - user-service
+        - file-service
+        - tenant-service
+        - workflow-service
+        - module-service
+        - license-service
+        - shell
+        - auth
+        - tenant
+        - file
+        - user
+        - workflow
+        - module
+      dry_run:
+        description: 'Perform dry run'
+        required: true
+        type: boolean
+        default: true
+      reason:
+        description: 'Reason for rollback'
+        required: true
+
+env:
+  ENVIRONMENT: ${{ github.event.inputs.environment }}
+  ROLLBACK_TARGET: ${{ github.event.inputs.rollback_target }}
+  COMPONENT: ${{ github.event.inputs.component }}
+  DRY_RUN: ${{ github.event.inputs.dry_run }}
+
+jobs:
+  validate-rollback:
+    runs-on: ubuntu-latest
+    outputs:
+      can-proceed: ${{ steps.validation.outputs.can-proceed }}
+      validation-message: ${{ steps.validation.outputs.message }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Validate rollback request
+      id: validation
+      run: |
+        # Validate environment
+        if [[ "$ENVIRONMENT" != "staging" && "$ENVIRONMENT" != "production" ]]; then
+          echo "can-proceed=false" >> $GITHUB_OUTPUT
+          echo "message=Invalid environment: $ENVIRONMENT" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Validate rollback target
+        if [[ "$ROLLBACK_TARGET" != "previous" ]] && [[ ! "$ROLLBACK_TARGET" =~ ^[a-f0-9]{7,40}$ ]]; then
+          echo "can-proceed=false" >> $GITHUB_OUTPUT
+          echo "message=Invalid rollback target: $ROLLBACK_TARGET" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Additional validation for production
+        if [[ "$ENVIRONMENT" == "production" ]]; then
+          # Check if user has production rollback permissions
+          if [[ "${{ github.actor }}" != "admin" ]] && [[ "${{ github.actor }}" != "devops-team" ]]; then
+            echo "can-proceed=false" >> $GITHUB_OUTPUT
+            echo "message=User ${{ github.actor }} does not have production rollback permissions" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Require approval for production rollbacks
+          if [[ "$DRY_RUN" != "true" ]]; then
+            echo "can-proceed=false" >> $GITHUB_OUTPUT
+            echo "message=Production rollbacks require manual approval. Please use the approval workflow." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+        fi
+        
+        echo "can-proceed=true" >> $GITHUB_OUTPUT
+        echo "message=Validation passed" >> $GITHUB_OUTPUT
+
+  approval-required:
+    needs: validate-rollback
+    if: needs.validate-rollback.outputs.can-proceed == 'true' && github.event.inputs.environment == 'production' && github.event.inputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    environment: production-rollback
+    
+    steps:
+    - name: Request approval
+      run: |
+        echo "Production rollback requires approval"
+        echo "Environment: $ENVIRONMENT"
+        echo "Component: $COMPONENT"
+        echo "Target: $ROLLBACK_TARGET"
+        echo "Reason: ${{ github.event.inputs.reason }}"
+
+  execute-rollback:
+    needs: [validate-rollback, approval-required]
+    if: always() && needs.validate-rollback.outputs.can-proceed == 'true' && (needs.approval-required.result == 'success' || needs.approval-required.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ vars.AWS_REGION }}
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+        kubectl config current-context
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq redis-tools postgresql-client
+
+    - name: Execute rollback
+      run: |
+        export KUBECONFIG=kubeconfig
+        export SLACK_WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL }}"
+        export NOTIFICATION_EMAIL="${{ vars.NOTIFICATION_EMAIL }}"
+        export CLOUDFRONT_DISTRIBUTION_ID="${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}"
+        
+        ./scripts/deployment-rollback.sh "$ENVIRONMENT" "$ROLLBACK_TARGET" "$COMPONENT" "$DRY_RUN"
+      env:
+        ENVIRONMENT: ${{ github.event.inputs.environment }}
+        ROLLBACK_TARGET: ${{ github.event.inputs.rollback_target }}
+        COMPONENT: ${{ github.event.inputs.component }}
+        DRY_RUN: ${{ github.event.inputs.dry_run }}
+
+    - name: Run post-rollback health check
+      if: github.event.inputs.dry_run == 'false'
+      run: |
+        export KUBECONFIG=kubeconfig
+        ./scripts/deployment-health-check.sh "$ENVIRONMENT" 300 10
+
+    - name: Upload rollback report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: rollback-report-${{ github.event.inputs.environment }}-${{ github.run_number }}
+        path: |
+          health-report-*.json
+          backup-*-metadata.json
+
+    - name: Create rollback issue
+      if: failure() && github.event.inputs.dry_run == 'false'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const title = `Rollback Failed: ${process.env.ENVIRONMENT} - ${process.env.COMPONENT}`;
+          const body = `
+          ## Rollback Failure Report
+          
+          **Environment:** ${process.env.ENVIRONMENT}
+          **Component:** ${process.env.COMPONENT}
+          **Target:** ${process.env.ROLLBACK_TARGET}
+          **Reason:** ${{ github.event.inputs.reason }}
+          **Executed by:** ${{ github.actor }}
+          **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          
+          ## Next Steps
+          1. Review the workflow logs for error details
+          2. Check the health report artifacts
+          3. Consider manual intervention
+          4. Update incident response team
+          
+          ## Artifacts
+          - Rollback report: Available in workflow artifacts
+          - Health check results: Available in workflow artifacts
+          `;
+          
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['rollback-failure', 'incident', process.env.ENVIRONMENT]
+          });
+
+  notify-completion:
+    needs: [validate-rollback, execute-rollback]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Determine status
+      id: status
+      run: |
+        if [[ "${{ needs.validate-rollback.result }}" != "success" ]]; then
+          echo "status=validation-failed" >> $GITHUB_OUTPUT
+          echo "message=${{ needs.validate-rollback.outputs.validation-message }}" >> $GITHUB_OUTPUT
+        elif [[ "${{ needs.execute-rollback.result }}" == "success" ]]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "message=Rollback completed successfully" >> $GITHUB_OUTPUT
+        elif [[ "${{ needs.execute-rollback.result }}" == "failure" ]]; then
+          echo "status=failed" >> $GITHUB_OUTPUT
+          echo "message=Rollback execution failed" >> $GITHUB_OUTPUT
+        else
+          echo "status=cancelled" >> $GITHUB_OUTPUT
+          echo "message=Rollback was cancelled" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Send notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: custom
+        custom_payload: |
+          {
+            "text": "ADX Core Rollback Notification",
+            "attachments": [
+              {
+                "color": "${{ steps.status.outputs.status == 'success' && 'good' || steps.status.outputs.status == 'failed' && 'danger' || 'warning' }}",
+                "fields": [
+                  {
+                    "title": "Status",
+                    "value": "${{ steps.status.outputs.status }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Environment",
+                    "value": "${{ github.event.inputs.environment }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Component",
+                    "value": "${{ github.event.inputs.component }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Target",
+                    "value": "${{ github.event.inputs.rollback_target }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Dry Run",
+                    "value": "${{ github.event.inputs.dry_run }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Executed By",
+                    "value": "${{ github.actor }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Reason",
+                    "value": "${{ github.event.inputs.reason }}",
+                    "short": false
+                  },
+                  {
+                    "title": "Message",
+                    "value": "${{ steps.status.outputs.message }}",
+                    "short": false
+                  }
+                ]
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: always() && env.SLACK_WEBHOOK_URL != ''

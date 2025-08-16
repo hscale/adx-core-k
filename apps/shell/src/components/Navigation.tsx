@@ -17,16 +17,17 @@ import {
 } from 'lucide-react';
 import { useAuthStore, useTenantStore, useThemeStore } from '@adx-core/shared-context';
 import { Button, ThemeToggle } from '@adx-core/design-system';
+import { useTranslation, LanguageSelector } from '@adx-core/i18n';
 import { TenantSwitcher } from './TenantSwitcher';
 
-const navigationItems = [
-  { name: 'Dashboard', href: '/', icon: Home },
-  { name: 'Authentication', href: '/auth', icon: Users },
-  { name: 'Tenants', href: '/tenant', icon: Building2 },
-  { name: 'Files', href: '/files', icon: FolderOpen },
-  { name: 'Users', href: '/users', icon: Users },
-  { name: 'Workflows', href: '/workflows', icon: Workflow },
-  { name: 'Modules', href: '/modules', icon: Puzzle },
+const getNavigationItems = (t: any) => [
+  { name: t('navigation.dashboard'), href: '/', icon: Home },
+  { name: t('navigation.auth'), href: '/auth', icon: Users },
+  { name: t('navigation.tenants'), href: '/tenant', icon: Building2 },
+  { name: t('navigation.files'), href: '/files', icon: FolderOpen },
+  { name: t('navigation.users'), href: '/users', icon: Users },
+  { name: t('navigation.workflows'), href: '/workflows', icon: Workflow },
+  { name: t('navigation.modules'), href: '/modules', icon: Puzzle },
 ];
 
 export const Navigation: React.FC = () => {
@@ -37,6 +38,9 @@ export const Navigation: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { currentTenant } = useTenantStore();
   const { theme, toggleTheme } = useThemeStore();
+  const { t } = useTranslation('shell');
+  
+  const navigationItems = getNavigationItems(t);
 
   const handleLogout = () => {
     logout();
@@ -86,10 +90,13 @@ export const Navigation: React.FC = () => {
             </div>
           </div>
 
-          {/* Right side - tenant switcher, theme toggle, user menu */}
+          {/* Right side - tenant switcher, language selector, theme toggle, user menu */}
           <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-4">
             {/* Tenant Switcher */}
             <TenantSwitcher />
+
+            {/* Language Selector */}
+            <LanguageSelector className="text-sm" showFlags={true} showNativeNames={false} />
 
             {/* Theme Toggle */}
             <ThemeToggle variant="button" size="sm" />
@@ -128,14 +135,22 @@ export const Navigation: React.FC = () => {
                       onClick={() => setIsUserMenuOpen(false)}
                     >
                       <Settings className="inline mr-2 h-4 w-4" />
-                      Settings
+                      {t('header.settings')}
+                    </Link>
+                    <Link
+                      to="/admin/languages"
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      <Settings className="inline mr-2 h-4 w-4" />
+                      {t('languageManagement.title')}
                     </Link>
                     <button
                       onClick={handleLogout}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       <LogOut className="inline mr-2 h-4 w-4" />
-                      Sign out
+                      {t('header.logout')}
                     </button>
                   </div>
                 </div>
@@ -207,6 +222,7 @@ export const Navigation: React.FC = () => {
             <div className="mt-3 space-y-1">
               <TenantSwitcher mobile />
               <div className="px-4 py-2">
+                <LanguageSelector className="w-full mb-2" showFlags={true} showNativeNames={true} />
                 <ThemeToggle variant="dropdown" size="sm" showLabel />
               </div>
               <Link
@@ -215,14 +231,14 @@ export const Navigation: React.FC = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 <Settings className="inline mr-3 h-5 w-5" />
-                Settings
+                {t('header.settings')}
               </Link>
               <button
                 onClick={handleLogout}
                 className="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 w-full text-left"
               >
                 <LogOut className="inline mr-3 h-5 w-5" />
-                Sign out
+                {t('header.logout')}
               </button>
             </div>
           </div>

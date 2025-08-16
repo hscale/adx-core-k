@@ -1,203 +1,175 @@
 groups:
-- name: adx-core-services
-  rules:
-  # Service Health Alerts
-  - alert: ServiceDown
-    expr: up == 0
-    for: 1m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Service {{ $labels.job }} is down"
-      description: "Service {{ $labels.job }} has been down for more than 1 minute."
+  - name: adx-core-microservices
+    rules:
+      # Service availability alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute."
 
-  - alert: HighErrorRate
-    expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
-    for: 2m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High error rate on {{ $labels.job }}"
-      description: "Error rate is {{ $value }} errors per second on {{ $labels.job }}."
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate is {{ $value }} errors per second on {{ $labels.job }}"
 
-  - alert: HighLatency
-    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High latency on {{ $labels.job }}"
-      description: "95th percentile latency is {{ $value }}s on {{ $labels.job }}."
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency on {{ $labels.job }}"
+          description: "95th percentile latency is {{ $value }}s on {{ $labels.job }}"
 
-  # Resource Usage Alerts
-  - alert: HighCPUUsage
-    expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High CPU usage on {{ $labels.job }}"
-      description: "CPU usage is {{ $value }}% on {{ $labels.job }}."
+      # Resource usage alerts
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.name }}"
+          description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.name }}"
 
-  - alert: HighMemoryUsage
-    expr: process_resident_memory_bytes / 1024 / 1024 > 1000
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High memory usage on {{ $labels.job }}"
-      description: "Memory usage is {{ $value }}MB on {{ $labels.job }}."
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.name }}"
+          description: "CPU usage is {{ $value | humanizePercentage }} on {{ $labels.name }}"
 
-  # Database Alerts
-  - alert: PostgreSQLDown
-    expr: pg_up == 0
-    for: 1m
-    labels:
-      severity: critical
-    annotations:
-      summary: "PostgreSQL is down"
-      description: "PostgreSQL database is down."
+      # Database alerts
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database is not responding"
 
-  - alert: PostgreSQLHighConnections
-    expr: pg_stat_database_numbackends / pg_settings_max_connections * 100 > 80
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "PostgreSQL high connection usage"
-      description: "PostgreSQL connection usage is {{ $value }}%."
+      - alert: PostgreSQLHighConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL high connection usage"
+          description: "PostgreSQL connection usage is {{ $value | humanizePercentage }}"
 
-  - alert: PostgreSQLSlowQueries
-    expr: rate(pg_stat_database_tup_returned[5m]) / rate(pg_stat_database_tup_fetched[5m]) < 0.1
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "PostgreSQL slow queries detected"
-      description: "PostgreSQL query efficiency is low: {{ $value }}."
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache is not responding"
 
-  # Redis Alerts
-  - alert: RedisDown
-    expr: redis_up == 0
-    for: 1m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Redis is down"
-      description: "Redis cache is down."
+      # Temporal workflow alerts
+      - alert: TemporalWorkflowFailures
+        expr: rate(temporal_workflow_failed_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Temporal workflow failure rate"
+          description: "Temporal workflow failure rate is {{ $value }} failures per second"
 
-  - alert: RedisHighMemoryUsage
-    expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 90
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Redis high memory usage"
-      description: "Redis memory usage is {{ $value }}%."
+      - alert: TemporalHighQueueDepth
+        expr: temporal_task_queue_depth > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Temporal task queue depth"
+          description: "Temporal task queue depth is {{ $value }} on {{ $labels.task_queue }}"
 
-  # Temporal Alerts
-  - alert: TemporalDown
-    expr: temporal_service_requests_total == 0
-    for: 2m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Temporal server is down"
-      description: "Temporal workflow server is not responding."
+      # Tenant-specific alerts
+      - alert: TenantQuotaExceeded
+        expr: tenant_quota_usage_ratio > 0.95
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tenant quota exceeded"
+          description: "Tenant {{ $labels.tenant_id }} has exceeded {{ $value | humanizePercentage }} of quota for {{ $labels.resource_type }}"
 
-  - alert: HighWorkflowFailureRate
-    expr: rate(temporal_workflow_completed_total{status="failed"}[5m]) / rate(temporal_workflow_completed_total[5m]) > 0.1
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High workflow failure rate"
-      description: "Workflow failure rate is {{ $value }} on Temporal."
+      # File service alerts
+      - alert: FileStorageHighUsage
+        expr: file_storage_usage_ratio > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "File storage usage high"
+          description: "File storage usage is {{ $value | humanizePercentage }} for tenant {{ $labels.tenant_id }}"
 
-  # Disk Space Alerts
-  - alert: DiskSpaceHigh
-    expr: (node_filesystem_size_bytes - node_filesystem_avail_bytes) / node_filesystem_size_bytes * 100 > 85
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Disk space usage high"
-      description: "Disk usage is {{ $value }}% on {{ $labels.device }}."
+      # Security alerts
+      - alert: HighFailedAuthAttempts
+        expr: rate(auth_failed_attempts_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High failed authentication attempts"
+          description: "Failed authentication rate is {{ $value }} attempts per second"
 
-  - alert: DiskSpaceCritical
-    expr: (node_filesystem_size_bytes - node_filesystem_avail_bytes) / node_filesystem_size_bytes * 100 > 95
-    for: 1m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Disk space critically low"
-      description: "Disk usage is {{ $value }}% on {{ $labels.device }}."
+      - alert: SuspiciousActivity
+        expr: rate(security_suspicious_activity_total[5m]) > 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Suspicious security activity detected"
+          description: "Suspicious activity rate is {{ $value }} events per second"
 
-- name: adx-core-business
-  rules:
-  # Business Logic Alerts
-  - alert: HighTenantCreationFailures
-    expr: rate(tenant_creation_failures_total[5m]) > 0.1
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High tenant creation failure rate"
-      description: "Tenant creation failure rate is {{ $value }} per second."
+  - name: adx-core-infrastructure
+    rules:
+      # Disk space alerts
+      - alert: DiskSpaceHigh
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space low on {{ $labels.instance }}"
+          description: "Disk space is {{ $value | humanizePercentage }} full on {{ $labels.instance }}"
 
-  - alert: FileUploadFailures
-    expr: rate(file_upload_failures_total[5m]) > 0.2
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High file upload failure rate"
-      description: "File upload failure rate is {{ $value }} per second."
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space critically low on {{ $labels.instance }}"
+          description: "Disk space is {{ $value | humanizePercentage }} full on {{ $labels.instance }}"
 
-  - alert: AuthenticationFailures
-    expr: rate(authentication_failures_total[5m]) > 1
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High authentication failure rate"
-      description: "Authentication failure rate is {{ $value }} per second."
+      # Load balancer alerts
+      - alert: LoadBalancerDown
+        expr: nginx_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Load balancer is down"
+          description: "Nginx load balancer is not responding"
 
-  - alert: QuotaExceeded
-    expr: quota_usage_percentage > 90
-    for: 1m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Quota usage high for tenant {{ $labels.tenant_id }}"
-      description: "Quota usage is {{ $value }}% for tenant {{ $labels.tenant_id }}."
-
-- name: adx-core-security
-  rules:
-  # Security Alerts
-  - alert: SuspiciousActivity
-    expr: rate(security_events_total{type="suspicious"}[5m]) > 0.1
-    for: 1m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Suspicious security activity detected"
-      description: "Suspicious activity rate is {{ $value }} events per second."
-
-  - alert: FailedLoginAttempts
-    expr: rate(login_attempts_total{status="failed"}[5m]) > 5
-    for: 2m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High failed login attempts"
-      description: "Failed login rate is {{ $value }} attempts per second."
-
-  - alert: UnauthorizedAccess
-    expr: rate(http_requests_total{status="403"}[5m]) > 1
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High unauthorized access attempts"
-      description: "Unauthorized access rate is {{ $value }} per second."
+      - alert: HighRequestRate
+        expr: rate(nginx_http_requests_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request rate"
+          description: "Request rate is {{ $value }} requests per second"

@@ -8,3 +8,6 @@ export * from './components/ThemeProvider';
 export * from './components/ThemeToggle';
 export * from './components/ThemeAware';
 export * from './utils';
+
+// Import RTL styles
+import './styles/rtl.css';

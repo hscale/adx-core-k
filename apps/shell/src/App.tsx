@@ -4,12 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { useAuthStore, useTenantStore, useThemeStore, SubscriptionTier } from '@adx-core/shared-context';
 import { EventBusProvider } from '@adx-core/event-bus';
+import { I18nProvider } from '@adx-core/i18n';
 import { Navigation } from './components/Navigation';
 import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { MicroFrontendLoader } from './components/MicroFrontendLoader';
 import { ThemeInitializer } from './components/ThemeInitializer';
-import './i18n';
+import { LanguageManagement } from './components/LanguageManagement/LanguageManagement';
 
 // Dynamic imports for micro-frontends
 const AuthApp = React.lazy(() => 
@@ -198,9 +199,10 @@ export const App: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeInitializer>
-        <EventBusProvider>
-          <BrowserRouter>
+      <I18nProvider defaultLanguage="en" namespaces={['common', 'shell', 'auth', 'tenant', 'file', 'user', 'workflow', 'module']}>
+        <ThemeInitializer>
+          <EventBusProvider>
+            <BrowserRouter>
             <div className="min-h-screen bg-background text-text-primary transition-colors duration-300">
               <ErrorBoundary microFrontendName="Shell Application">
                 {isAuthenticated && <Navigation />}
@@ -282,6 +284,15 @@ export const App: React.FC = () => {
                         </ProtectedRoute>
                       } 
                     />
+                    
+                    <Route 
+                      path="/admin/languages" 
+                      element={
+                        <ProtectedRoute>
+                          <LanguageManagement />
+                        </ProtectedRoute>
+                      } 
+                    />
 
                     {/* Fallback route */}
                     <Route 
@@ -299,9 +310,10 @@ export const App: React.FC = () => {
               </main>
             </ErrorBoundary>
           </div>
-        </BrowserRouter>
-      </EventBusProvider>
-    </ThemeInitializer>
-  </QueryClientProvider>
+            </BrowserRouter>
+          </EventBusProvider>
+        </ThemeInitializer>
+      </I18nProvider>
+    </QueryClientProvider>
   );
 };

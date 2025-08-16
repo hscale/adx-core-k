@@ -1,0 +1,363 @@
+name: Deploy Microservices
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'adx-core/services/**'
+      - 'bff-services/**'
+      - '.github/workflows/deploy-microservices.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      services:
+        description: 'Services to deploy (comma-separated, or "all")'
+        required: true
+        default: 'all'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend-services: ${{ steps.changes.outputs.backend-services }}
+      bff-services: ${{ steps.changes.outputs.bff-services }}
+      all-services: ${{ steps.changes.outputs.all-services }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+
+    - name: Detect service changes
+      id: changes
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event.inputs.services }}" = "all" ]; then
+            echo "backend-services=api-gateway,auth-service,user-service,file-service,tenant-service,workflow-service,module-service,license-service" >> $GITHUB_OUTPUT
+            echo "bff-services=auth-bff,tenant-bff,file-bff,user-bff,workflow-bff" >> $GITHUB_OUTPUT
+          else
+            echo "backend-services=${{ github.event.inputs.services }}" >> $GITHUB_OUTPUT
+            echo "bff-services=" >> $GITHUB_OUTPUT
+          fi
+        else
+          # Detect changed services based on file changes
+          BACKEND_CHANGES=""
+          BFF_CHANGES=""
+          
+          # Check backend services
+          for service in api-gateway auth-service user-service file-service tenant-service workflow-service module-service license-service; do
+            if git diff --name-only HEAD~1 HEAD | grep -q "adx-core/services/$service/"; then
+              BACKEND_CHANGES="$BACKEND_CHANGES,$service"
+            fi
+          done
+          
+          # Check BFF services
+          for service in auth-bff tenant-bff file-bff user-bff workflow-bff; do
+            if git diff --name-only HEAD~1 HEAD | grep -q "bff-services/$service/"; then
+              BFF_CHANGES="$BFF_CHANGES,$service"
+            fi
+          done
+          
+          echo "backend-services=${BACKEND_CHANGES#,}" >> $GITHUB_OUTPUT
+          echo "bff-services=${BFF_CHANGES#,}" >> $GITHUB_OUTPUT
+        fi
+        
+        # Combine all services
+        ALL_SERVICES="${BACKEND_CHANGES#,},${BFF_CHANGES#,}"
+        echo "all-services=${ALL_SERVICES#,}" >> $GITHUB_OUTPUT
+
+  build-backend-services:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend-services != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJson(format('["{0}"]', needs.detect-changes.outputs.backend-services)) }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: adx-core/services/${{ matrix.service }}/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          SERVICE_NAME=${{ matrix.service }}
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          VCS_REF=${{ github.sha }}
+
+    - name: Generate deployment manifest
+      run: |
+        mkdir -p deployment-manifests
+        cat > deployment-manifests/${{ matrix.service }}.yaml << EOF
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ${{ matrix.service }}
+          namespace: adx-core-${{ github.event.inputs.environment || 'staging' }}
+          labels:
+            app: ${{ matrix.service }}
+            version: ${{ github.sha }}
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: ${{ matrix.service }}
+          template:
+            metadata:
+              labels:
+                app: ${{ matrix.service }}
+                version: ${{ github.sha }}
+            spec:
+              containers:
+              - name: ${{ matrix.service }}
+                image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ github.sha }}
+                ports:
+                - containerPort: 8080
+                env:
+                - name: ENVIRONMENT
+                  value: ${{ github.event.inputs.environment || 'staging' }}
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: database-credentials
+                      key: url
+                - name: TEMPORAL_SERVER_URL
+                  value: temporal-server:7233
+                resources:
+                  requests:
+                    memory: "256Mi"
+                    cpu: "250m"
+                  limits:
+                    memory: "512Mi"
+                    cpu: "500m"
+                livenessProbe:
+                  httpGet:
+                    path: /health
+                    port: 8080
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                readinessProbe:
+                  httpGet:
+                    path: /ready
+                    port: 8080
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: ${{ matrix.service }}
+          namespace: adx-core-${{ github.event.inputs.environment || 'staging' }}
+        spec:
+          selector:
+            app: ${{ matrix.service }}
+          ports:
+          - port: 80
+            targetPort: 8080
+          type: ClusterIP
+        EOF
+
+    - name: Upload deployment manifest
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-manifest-${{ matrix.service }}
+        path: deployment-manifests/${{ matrix.service }}.yaml
+
+  build-bff-services:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.bff-services != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJson(format('["{0}"]', needs.detect-changes.outputs.bff-services)) }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Determine build context
+      id: context
+      run: |
+        if [ -f "bff-services/${{ matrix.service }}/Cargo.toml" ]; then
+          echo "type=rust" >> $GITHUB_OUTPUT
+          echo "dockerfile=Dockerfile.rust" >> $GITHUB_OUTPUT
+        else
+          echo "type=node" >> $GITHUB_OUTPUT
+          echo "dockerfile=Dockerfile.node" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/bff-${{ matrix.service }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: bff-services/${{ matrix.service }}
+        file: bff-services/${{ matrix.service }}/${{ steps.context.outputs.dockerfile }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy-to-kubernetes:
+    needs: [detect-changes, build-backend-services, build-bff-services]
+    if: always() && (needs.build-backend-services.result == 'success' || needs.build-bff-services.result == 'success')
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download deployment manifests
+      uses: actions/download-artifact@v4
+      with:
+        path: deployment-manifests
+        pattern: deployment-manifest-*
+        merge-multiple: true
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+        kubectl config current-context
+
+    - name: Create namespace if not exists
+      run: |
+        export KUBECONFIG=kubeconfig
+        kubectl create namespace adx-core-${{ github.event.inputs.environment || 'staging' }} --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Deploy services
+      run: |
+        export KUBECONFIG=kubeconfig
+        for manifest in deployment-manifests/*.yaml; do
+          if [ -f "$manifest" ]; then
+            echo "Deploying $manifest"
+            kubectl apply -f "$manifest"
+          fi
+        done
+
+    - name: Wait for deployments to be ready
+      run: |
+        export KUBECONFIG=kubeconfig
+        for manifest in deployment-manifests/*.yaml; do
+          if [ -f "$manifest" ]; then
+            service_name=$(basename "$manifest" .yaml)
+            echo "Waiting for $service_name to be ready..."
+            kubectl wait --for=condition=available --timeout=300s deployment/$service_name -n adx-core-${{ github.event.inputs.environment || 'staging' }}
+          fi
+        done
+
+    - name: Run deployment health checks
+      run: |
+        export KUBECONFIG=kubeconfig
+        namespace=adx-core-${{ github.event.inputs.environment || 'staging' }}
+        
+        # Get all services in the namespace
+        services=$(kubectl get services -n $namespace -o jsonpath='{.items[*].metadata.name}')
+        
+        for service in $services; do
+          echo "Health checking $service..."
+          
+          # Port forward to the service
+          kubectl port-forward service/$service 8080:80 -n $namespace &
+          PF_PID=$!
+          
+          # Wait for port forward to be ready
+          sleep 5
+          
+          # Check health endpoint
+          if curl -f http://localhost:8080/health; then
+            echo "$service is healthy"
+          else
+            echo "$service health check failed"
+            kubectl logs -l app=$service -n $namespace --tail=50
+          fi
+          
+          # Clean up port forward
+          kill $PF_PID
+        done
+
+  notify-deployment:
+    needs: [deploy-to-kubernetes]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Notify deployment status
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ needs.deploy-to-kubernetes.result }}
+        channel: '#deployments'
+        text: |
+          Deployment to ${{ github.event.inputs.environment || 'staging' }} completed with status: ${{ needs.deploy-to-kubernetes.result }}
+          Services deployed: ${{ needs.detect-changes.outputs.all-services }}
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: always()

@@ -1,0 +1,86 @@
+{
+  "navigation": {
+    "dashboard": "Dashboard",
+    "auth": "Authentication",
+    "tenants": "Organizations",
+    "users": "Users",
+    "files": "Files",
+    "workflows": "Workflows",
+    "modules": "Modules",
+    "settings": "Settings",
+    "help": "Help"
+  },
+  "header": {
+    "search": "Search...",
+    "notifications": "Notifications",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Sign Out"
+  },
+  "footer": {
+    "copyright": "© {{year}} ADX Core. All rights reserved.",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "support": "Support"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back, {{name}}!",
+    "overview": "Overview",
+    "recentActivity": "Recent Activity",
+    "quickActions": "Quick Actions",
+    "stats": {
+      "totalUsers": "Total Users",
+      "activeWorkflows": "Active Workflows",
+      "storageUsed": "Storage Used",
+      "apiCalls": "API Calls Today"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark All as Read",
+    "noNotifications": "No new notifications",
+    "types": {
+      "info": "Information",
+      "success": "Success",
+      "warning": "Warning",
+      "error": "Error"
+    }
+  },
+  "search": {
+    "placeholder": "Search across all modules...",
+    "noResults": "No results found",
+    "suggestions": "Suggestions",
+    "recent": "Recent Searches"
+  },
+  "languageManagement": {
+    "title": "Language Management",
+    "description": "Manage translations and language settings for your organization",
+    "currentLanguage": "Current Language",
+    "availableLanguages": "Available Languages",
+    "translationStatus": "Translation Status",
+    "addLanguage": "Add Language",
+    "removeLanguage": "Remove Language",
+    "exportTranslations": "Export Translations",
+    "importTranslations": "Import Translations",
+    "translationEditor": {
+      "title": "Translation Editor",
+      "namespace": "Namespace",
+      "key": "Key",
+      "value": "Value",
+      "addKey": "Add Translation Key",
+      "saveChanges": "Save Changes",
+      "discardChanges": "Discard Changes",
+      "success": "Translations saved successfully",
+      "error": "Failed to save translations"
+    },
+    "bulkOperations": {
+      "title": "Bulk Operations",
+      "exportAll": "Export All Languages",
+      "importAll": "Import All Languages",
+      "validateAll": "Validate All Translations",
+      "findMissing": "Find Missing Translations",
+      "autoTranslate": "Auto-Translate Missing Keys"
+    }
+  }
+}
