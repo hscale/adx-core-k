@@ -13,7 +13,7 @@ Successfully analyzed and prepared sync for **43 ADX Core implementation tasks**
 
 ### Completed Tasks (Phase 1-2 Foundation)
 1. **Project Structure and Workspace Setup** - Rust workspace with microservices
-2. **Temporal Infrastructure Setup** - Docker Compose, namespaces, Web UI
+2. **Temporal Infrastructure Setup** - docker-compose, namespaces, Web UI
 3. **Database and Caching Infrastructure** - PostgreSQL, Redis, migrations
 4. **Shared Library Foundation** - Repository traits, error handling, logging
 5. **Temporal SDK Integration** - Real SDK integration, worker registration

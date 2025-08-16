@@ -1,5 +1,6 @@
 // Complete user workflow integration tests
 use super::*;
+use crate::test_environment::{IntegrationTestEnvironment, TestData};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use serde_json::json;

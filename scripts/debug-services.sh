@@ -116,7 +116,7 @@ get_service_logs() {
     
     log_info "Getting logs for $service_name (last $lines lines)..."
     
-    # Try Docker Compose logs first
+    # Try docker-compose logs first
     if docker-compose -f "$ADX_CORE_DIR/infrastructure/docker/docker-compose.dev.yml" logs --tail="$lines" "$service_name" 2>/dev/null; then
         return 0
     fi

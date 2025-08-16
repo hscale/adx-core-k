@@ -170,10 +170,10 @@ jobs:
           tests/target
         key: ${{ runner.os }}-cargo-tests-${{ hashFiles('**/Cargo.lock') }}
     
-    - name: Set up Docker Compose
+  - name: Set up docker compose
       run: |
         cd adx-core
-        docker-compose -f infrastructure/docker/docker-compose.dev.yml up -d
+  docker compose -f infrastructure/docker/docker-compose.dev.yml up -d
         sleep 60  # Wait for services to start
     
     - name: Run integration tests
@@ -184,7 +184,7 @@ jobs:
     - name: Tear down services
       run: |
         cd adx-core
-        docker-compose -f infrastructure/docker/docker-compose.dev.yml down
+  docker compose -f infrastructure/docker/docker-compose.dev.yml down
 
   e2e-tests:
     name: End-to-End Tests
@@ -213,7 +213,7 @@ jobs:
     - name: Start test environment
       run: |
         cd adx-core
-        docker-compose -f infrastructure/docker/docker-compose.dev.yml up -d
+  docker compose -f infrastructure/docker/docker-compose.dev.yml up -d
         sleep 90  # Wait for services to start
     
     - name: Start frontend applications

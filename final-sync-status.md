@@ -12,7 +12,7 @@ The GitHub sync system is now ready to create and manage GitHub issues for compr
 These tasks are marked as `[x]` and would create **closed GitHub issues**:
 
 1. ✅ **Project Structure and Workspace Setup** - Rust workspace structure
-2. ✅ **Temporal Infrastructure Setup** - Docker Compose, namespaces, Web UI  
+2. ✅ **Temporal Infrastructure Setup** - docker-compose, namespaces, Web UI  
 3. ✅ **Database and Caching Infrastructure** - PostgreSQL, Redis, migrations
 4. ✅ **Shared Library Foundation** - Repository traits, error handling
 5. ✅ **Temporal SDK Integration** - Real SDK integration, workers

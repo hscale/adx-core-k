@@ -249,7 +249,7 @@ CI=true ./scripts/test-all.sh
 ls -la scripts/
 
 # Validate Docker setup
-docker --version && docker-compose --version
+docker --version && docker compose version
 
 # Check port availability
 ./scripts/debug-services.sh --urls-only

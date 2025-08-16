@@ -9,7 +9,7 @@ This implementation plan integrates Temporal.io workflows into optional Backend 
 - [ ] 1. Set up BFF services as Temporal workflow clients
   - Create Temporal client configuration and connection utilities for both Node.js and Rust BFF services
   - Implement shared error handling patterns and logging utilities for workflow operations
-  - Set up Docker Compose integration for BFF services connecting to existing Temporal infrastructure
+  - Set up docker compose integration for BFF services connecting to existing Temporal infrastructure
   - Configure BFF services to connect to the main Temporal cluster (port 7233)
   - _Requirements: 2.1, 2.2, 6.1_
 
@@ -154,7 +154,7 @@ This implementation plan integrates Temporal.io workflows into optional Backend 
 
 - [ ] 9. Create development and testing tools
 - [ ] 9.1 Implement local development environment
-  - Create Docker Compose configuration for Temporal workers
+  - Create docker compose configuration for Temporal workers
   - Add development scripts for starting BFF services with workflow support
   - Implement hot-reloading for workflow definitions during development
   - _Requirements: 6.3, 6.4_

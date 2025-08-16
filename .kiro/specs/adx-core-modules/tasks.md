@@ -342,14 +342,14 @@
   - _Requirements: 5.1, 5.2, 6.2, 8.1_
 
 - [ ] 14. Create deployment and production setup
-  - Add module service to Docker Compose development environment
+  - Add module service to docker compose development environment
   - Create production deployment configurations and scripts
   - Implement module service monitoring and alerting
   - Write operational documentation and runbooks
   - _Requirements: Production readiness and operational excellence_
 
 - [ ] 14.1 Add module service to development environment
-  - Update Docker Compose configuration to include module service
+  - Update docker compose configuration to include module service
   - Add module service to development startup scripts
   - Create module development environment setup documentation
   - Implement module service health checks and monitoring

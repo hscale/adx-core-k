@@ -9,6 +9,7 @@ services:
       POSTGRES_DB: adx_core
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: password
     ports:
       - "5432:5432"
     volumes:
@@ -22,7 +23,7 @@ services:
 
   # Redis Cache
   redis:
-    image: redis:6-alpine
+    image: redis:7-alpine
     container_name: adx-redis
     ports:
       - "6379:6379"
@@ -35,41 +36,42 @@ services:
       retries: 5
 
   # Temporal Server
-  temporal:
-    image: temporalio/auto-setup:latest
-    container_name: adx-temporal
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - DB=postgresql
-      - DB_PORT=5432
-      - POSTGRES_USER=postgres
-      - POSTGRES_PWD=postgres
-      - POSTGRES_SEEDS=postgres
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-    ports:
-      - "7233:7233"
-    volumes:
-      - ./temporal-config:/etc/temporal/config/dynamicconfig
-    healthcheck:
-      test: ["CMD", "tctl", "--address", "temporal:7233", "workflow", "list"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+  # temporal:
+  #   image: temporalio/auto-setup:latest
+  #   container_name: adx-temporal
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     - DB=postgres12
+  #     - DB_PORT=5432
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PWD=postgres
+  #     - POSTGRES_SEEDS=adx-postgres
+  #     - POSTGRES_DATABASE=adx_core
+  #     - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+  #   ports:
+  #     - "7233:7233"
+  #   volumes:
+  #     - ./temporal-config:/etc/temporal/config/dynamicconfig
+  #   healthcheck:
+  #     test: ["CMD", "tctl", "--address", "temporal:7233", "workflow", "list"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
 
-  # Temporal Web UI
-  temporal-web:
-    image: temporalio/web:latest
-    container_name: adx-temporal-web
-    depends_on:
-      temporal:
-        condition: service_healthy
-    environment:
-      - TEMPORAL_GRPC_ENDPOINT=temporal:7233
-      - TEMPORAL_PERMIT_WRITE_API=true
-    ports:
-      - "8088:8088"
+  # # Temporal UI
+  # temporal-ui:
+  #   image: temporalio/ui:latest
+  #   container_name: adx-temporal-ui
+  #   depends_on:
+  #     temporal:
+  #       condition: service_healthy
+  #   environment:
+  #     - TEMPORAL_GRPC_ENDPOINT=temporal:7233
+  #     - TEMPORAL_PERMIT_WRITE_API=true
+  #   ports:
+  #     - "8088:8088"
 
   # Jaeger for distributed tracing
   jaeger:

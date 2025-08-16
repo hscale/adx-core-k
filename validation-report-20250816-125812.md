@@ -13,7 +13,7 @@
 - ✅ **Docker Infrastructure**: PASS
 - ✅ **Linting Configuration**: PASS
 - ✅ **Test Configuration**: PASS
-- ✅ **Docker Compose**: PASS
+- ✅ **docker compose**: PASS
 - ✅ **Database Config**: PASS
 - ✅ **Database Migrations**: PASS
 - ✅ **Cargo Version**: PASS
@@ -74,7 +74,7 @@
 npm ci
 
 # Start infrastructure
-cd adx-core && docker-compose -f infrastructure/docker/docker-compose.dev.yml up -d
+cd adx-core && docker compose -f infrastructure/docker/docker-compose.dev.yml up -d
 
 # Run database migrations
 cd adx-core && cargo run --bin db-manager -- migrate

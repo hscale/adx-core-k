@@ -113,7 +113,7 @@ adx-core-k/
 ### Prerequisites
 - [x] Rust 1.88+ (Required for backend development)
 - [x] Node.js 18+ (Required for frontend development)
-- [x] Docker & Docker Compose (Required for infrastructure)
+- [x] Docker & docker-compose (Required for infrastructure)
 - [x] PostgreSQL 14+ (Database requirement documented)
 - [x] Redis 6+ (Caching requirement documented)
 

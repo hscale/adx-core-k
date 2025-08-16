@@ -126,7 +126,7 @@ Handles deployment to different environments.
 
 ## Prerequisites
 
-- Docker and Docker Compose
+- Docker and docker-compose
 - Rust toolchain (latest stable)
 - Git
 - curl (for health checks)

@@ -22,9 +22,9 @@
     "lucide-react": "^0.292.0",
     "recharts": "^2.8.0",
     "date-fns": "^2.30.0",
-    "@adx-core/design-system": "workspace:*",
-    "@adx-core/shared-context": "workspace:*",
-    "@adx-core/event-bus": "workspace:*"
+    "@adx-core/design-system": "file:../../packages/design-system",
+    "@adx-core/shared-context": "file:../../packages/shared-context",
+    "@adx-core/event-bus": "file:../../packages/event-bus"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",

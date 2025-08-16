@@ -8,7 +8,7 @@ This guide covers the complete production deployment and operational procedures 
 - **BFF Layer**: 5 optional optimization services (Node.js/TypeScript and Rust)
 - **Frontend**: 6 micro-frontends using Module Federation
 - **Infrastructure**: Temporal, PostgreSQL, Redis, monitoring stack
-- **Deployment**: Kubernetes with independent scaling and Docker Compose fallback
+- **Deployment**: Kubernetes with independent scaling and docker-compose fallback
 
 ## Pre-Deployment Requirements
 
@@ -90,7 +90,7 @@ kubectl get pods -n adx-core
 kubectl get services -n adx-core
 ```
 
-#### Docker Compose Deployment
+#### docker-compose Deployment
 ```bash
 # Set environment variables
 export VERSION=latest

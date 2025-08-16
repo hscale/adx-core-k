@@ -7,7 +7,7 @@ This implementation plan establishes the temporal-first backend microservices ar
 ## Implementation Tasks
 
 - [ ] 1. Temporal Infrastructure Foundation
-  - Set up Temporal.io development cluster with Docker Compose
+  - Set up Temporal.io development cluster with docker compose
   - Configure Temporal namespaces for development, staging, production
   - Set up Temporal Web UI for workflow monitoring and debugging (port 8088)
   - Create Temporal worker configuration and management system

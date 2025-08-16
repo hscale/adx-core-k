@@ -1,5 +1,6 @@
 // Multi-tenant isolation and security tests
 use super::*;
+use crate::test_environment::{IntegrationTestEnvironment, TestData};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use serde_json::json;
@@ -67,8 +68,9 @@ impl MultiTenantTests {
             },
             errors: Vec::new(),
         })
-    }    /
-// Test data isolation between tenants
+    }
+
+    /// Test data isolation between tenants
     async fn test_data_isolation(&self) -> TestResult {
         let test_start = Instant::now();
         let mut assertions = Vec::new();

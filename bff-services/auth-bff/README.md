@@ -281,7 +281,7 @@ EXPOSE 4001
 CMD ["npm", "start"]
 ```
 
-### Docker Compose
+### docker compose
 
 ```yaml
 version: '3.8'

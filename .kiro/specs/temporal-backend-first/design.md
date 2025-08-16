@@ -1156,7 +1156,7 @@ pub fn log_activity_execution(
 
 **Phase 1: Temporal-First Backend**
 ```yaml
-# Docker Compose for development
+# docker compose for development
 version: '3.8'
 services:
   # Existing services...

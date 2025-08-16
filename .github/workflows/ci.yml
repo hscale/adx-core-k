@@ -115,7 +115,7 @@ jobs:
     - name: Start infrastructure
       run: |
         cd adx-core/infrastructure/docker
-        docker compose -f docker-compose.dev.yml up -d
+  docker compose -f docker-compose.dev.yml up -d
         sleep 30
 
     - name: Run integration tests
@@ -131,7 +131,7 @@ jobs:
       if: always()
       run: |
         cd adx-core/infrastructure/docker
-        docker compose -f docker-compose.dev.yml down
+  docker compose -f docker-compose.dev.yml down
 
   build-images:
     name: Build Docker Images

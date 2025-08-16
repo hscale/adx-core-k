@@ -200,7 +200,7 @@ npm run test:cross-platform
 
 1. **Reset Database**: 
    ```bash
-   docker-compose -f adx-core/infrastructure/docker/docker-compose.dev.yml down -v
+   docker compose -f adx-core/infrastructure/docker/docker-compose.dev.yml down -v
    ./scripts/dev-start-all.sh
    ```
 
@@ -233,7 +233,7 @@ To stop all services:
 1. **Press Ctrl+C** in the terminal running `dev-start-all.sh`
 2. **Or run**: 
    ```bash
-   docker-compose -f adx-core/infrastructure/docker/docker-compose.dev.yml down
+   docker compose -f adx-core/infrastructure/docker/docker-compose.dev.yml down
    ```
 
 ## Architecture Overview

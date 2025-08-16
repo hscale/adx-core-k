@@ -2,13 +2,12 @@
 // This module provides comprehensive end-to-end testing infrastructure
 
 pub mod circuit_breakers;
-pub mod cross_service;
+pub mod cross_service_tests;
 pub mod load_testing;
 pub mod micro_frontend;
 pub mod multi_tenant;
 pub mod user_workflows;
 pub mod test_environment;
-pub mod performance;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -58,7 +57,7 @@ pub struct IntegrationTestResults {
     pub errors: Vec<TestError>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TestResult {
     pub test_name: String,
     pub status: TestStatus,
@@ -67,7 +66,7 @@ pub struct TestResult {
     pub assertions: Vec<AssertionResult>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TestStatus {
     Passed,
     Failed,
@@ -75,7 +74,7 @@ pub enum TestStatus {
     Timeout,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AssertionResult {
     pub description: String,
     pub passed: bool,

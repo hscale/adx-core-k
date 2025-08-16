@@ -39,7 +39,7 @@ ADX CORE follows a **Temporal-first** approach where Temporal workflows are the 
 ### Prerequisites
 - Rust 1.88+
 - Node.js 18+
-- Docker & Docker Compose
+- Docker & docker-compose
 - PostgreSQL 14+
 - Redis 6+
 
@@ -58,7 +58,7 @@ cd adx-core
 
 3. **Or start infrastructure only**:
 ```bash
-docker compose -f infrastructure/docker/docker-compose.dev.yml up -d
+docker-compose -f infrastructure/docker/docker-compose.dev.yml up -d
 ```
 
 ### Service Architecture

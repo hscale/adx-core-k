@@ -5,7 +5,7 @@ This runbook covers the deployment procedures for ADX Core microservices in prod
 
 ## Prerequisites
 - Access to production environment
-- Docker and Docker Compose installed
+- Docker and docker-compose installed
 - Environment variables configured
 - Database migrations ready
 - Monitoring systems operational

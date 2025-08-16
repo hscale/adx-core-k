@@ -122,6 +122,6 @@ else
     echo "  - Check service logs in ./logs/ directory"
     echo "  - Ensure Docker Desktop is running"
     echo "  - Wait a few more minutes for services to fully start"
-    echo "  - Run 'docker-compose -f adx-core/infrastructure/docker/docker-compose.dev.yml ps' to check container status"
+    echo "  - Run 'docker compose -f adx-core/infrastructure/docker/docker-compose.dev.yml ps' to check container status"
     exit 1
 fi

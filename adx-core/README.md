@@ -66,7 +66,7 @@ adx-core/
 ## Getting Started
 
 ### Prerequisites
-- Docker and Docker Compose
+- Docker and docker-compose
 - Rust toolchain (latest stable)
 - Git
 

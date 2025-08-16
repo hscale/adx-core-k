@@ -1,5 +1,6 @@
 // Cross-micro-frontend integration and Module Federation tests
 use super::*;
+use crate::test_environment::{IntegrationTestEnvironment, TestData};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use serde_json::json;
@@ -61,8 +62,9 @@ impl MicroFrontendTests {
             },
             errors: Vec::new(),
         })
-    }    /
-// Test Module Federation loading
+    }
+
+    // Test Module Federation loading
     async fn test_module_federation_loading(&self) -> TestResult {
         let test_start = Instant::now();
         let mut assertions = Vec::new();
@@ -162,3 +164,4 @@ impl MicroFrontendTests {
             assertions,
         }
     }
+}

@@ -2,6 +2,7 @@
 use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use crate::test_environment::{IntegrationTestEnvironment, TestData};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use futures::future::join_all;

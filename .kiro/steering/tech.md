@@ -103,7 +103,7 @@ tokio = "1.0"               # Async runtime for workflows
 ## Development Environment
 
 ### Infrastructure
-- **Containerization**: Docker + Docker Compose for development
+- **Containerization**: Docker + docker compose for development
 - **Database**: PostgreSQL 14+ with automated migrations
 - **Cache**: Redis 6+ for sessions and caching
 - **Workflow Engine**: Temporal Server with UI at http://localhost:8088

@@ -14,7 +14,7 @@
 - **Rust Workspace:** `adx-core/Cargo.toml` with microservices architecture
 - **Services:** auth-service, user-service, file-service, tenant-service, workflow-service
 - **Shared Libraries:** Common utilities, types, and Temporal abstractions
-- **Infrastructure:** Docker Compose, database setup, Temporal configuration
+- **Infrastructure:** docker-compose, database setup, Temporal configuration
 - **Scripts:** Development, build, test, and deployment automation
 
 #### 📋 Kiro Project Management

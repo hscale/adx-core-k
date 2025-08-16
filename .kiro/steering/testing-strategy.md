@@ -1302,9 +1302,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up Docker Compose
+  - name: Set up docker compose
       run: |
-        docker-compose -f docker-compose.test.yml up -d
+  docker compose -f docker-compose.test.yml up -d
         sleep 30  # Wait for services to start
     
     - name: Install Rust
@@ -1318,7 +1318,7 @@ jobs:
         TEST_MODE: integration
     
     - name: Tear down
-      run: docker-compose -f docker-compose.test.yml down
+  run: docker compose -f docker-compose.test.yml down
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -1364,7 +1364,7 @@ jobs:
     
     - name: Start test environment
       run: |
-        docker-compose -f docker-compose.test.yml up -d
+  docker compose -f docker-compose.test.yml up -d
         npm run dev:all &
         sleep 60  # Wait for services to start
     

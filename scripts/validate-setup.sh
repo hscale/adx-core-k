@@ -162,7 +162,7 @@ check_docker_compose() {
     if command -v docker-compose &> /dev/null; then
         docker-compose --version > /dev/null 2>&1
         return $?
-    elif docker compose version &> /dev/null; then
+    elif docker-compose version &> /dev/null; then
         return 0
     else
         return 1
@@ -545,7 +545,7 @@ main() {
     run_check "Rust Version" check_rust_version
     run_check "Cargo Version" check_cargo_version
     run_check "Docker Version" check_docker_version
-    run_check "Docker Compose" check_docker_compose
+    run_check "docker-compose" check_docker_compose
     run_check "Git Version" check_git_version
     
     # Project configuration

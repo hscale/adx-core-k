@@ -13,7 +13,7 @@ ADX CORE is built with a microservices architecture that supports multiple deplo
 - **Infrastructure**: Temporal, PostgreSQL, Redis, monitoring stack
 
 ### Deployment Patterns
-- **Development**: Docker Compose with hot-reload
+- **Development**: docker-compose with hot-reload
 - **Staging**: Kubernetes with GitOps
 - **Production**: Kubernetes with blue-green deployment
 - **Enterprise**: On-premise or hybrid cloud
@@ -21,7 +21,7 @@ ADX CORE is built with a microservices architecture that supports multiple deplo
 ## Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose
+- Docker and docker-compose
 - Kubernetes cluster (for production)
 - PostgreSQL 14+
 - Redis 6+
@@ -54,7 +54,7 @@ kubectl get services -n adx-core
 
 ### 1. Development Environment
 **Use Case**: Local development and testing  
-**Infrastructure**: Docker Compose  
+**Infrastructure**: docker-compose  
 **Services**: All services with hot-reload  
 
 ```bash

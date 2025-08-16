@@ -169,7 +169,7 @@ ${taskDetails.completionEvidence}
     return `- [x] Create root \`adx-core/\` directory with Rust workspace structure
 - [x] Initialize workspace \`Cargo.toml\` with microservices members (auth-service, user-service, file-service, tenant-service, workflow-service)
 - [x] Create \`services/shared/\` crate for common utilities, types, and Temporal abstractions
-- [x] Set up \`infrastructure/docker/\` directory with development Docker Compose files
+- [x] Set up \`infrastructure/docker/\` directory with development docker-compose files
 - [x] Create \`scripts/\` directory with development and deployment automation scripts
 - [x] Initialize Git repository with proper \`.gitignore\` for Rust and Node.js projects`;
   }
@@ -186,7 +186,7 @@ ${taskDetails.completionEvidence}
 **Key Deliverables Verified:**
 - \`adx-core/Cargo.toml\` - Workspace configuration with all microservices
 - \`adx-core/services/shared/\` - Common utilities and Temporal abstractions
-- \`adx-core/infrastructure/docker/\` - Development Docker Compose files
+- \`adx-core/infrastructure/docker/\` - Development docker-compose files
 - \`adx-core/scripts/\` - Development and deployment automation
 - \`adx-core/docs/\` - Temporal setup and workflow documentation
 - Proper Git repository structure with \`.gitignore\``;

@@ -44,9 +44,9 @@ check_dependencies() {
         exit 1
     fi
     
-    # Check Docker Compose
-    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        log_error "Docker Compose is not installed. Please install Docker Compose first."
+    # Check docker-compose
+    if ! command -v docker-compose &> /dev/null && ! docker-compose version &> /dev/null; then
+        log_error "docker-compose is not installed. Please install docker-compose first."
         exit 1
     fi
     

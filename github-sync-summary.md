@@ -25,7 +25,7 @@ The task involves setting up the foundational project structure for ADX CORE:
 - Create root `adx-core/` directory with Rust workspace structure
 - Initialize workspace `Cargo.toml` with microservices members (auth-service, user-service, file-service, tenant-service, workflow-service)
 - Create `services/shared/` crate for common utilities, types, and Temporal abstractions
-- Set up `infrastructure/docker/` directory with development Docker Compose files
+- Set up `infrastructure/docker/` directory with development docker-compose files
 - Create `scripts/` directory with development and deployment automation scripts
 - Initialize Git repository with proper `.gitignore` for Rust and Node.js projects
 
@@ -57,7 +57,7 @@ The task involves setting up the foundational project structure for ADX CORE:
 - Create root `adx-core/` directory with Rust workspace structure
 - Initialize workspace `Cargo.toml` with microservices members (auth-service, user-service, file-service, tenant-service, workflow-service)
 - Create `services/shared/` crate for common utilities, types, and Temporal abstractions
-- Set up `infrastructure/docker/` directory with development Docker Compose files
+- Set up `infrastructure/docker/` directory with development docker-compose files
 - Create `scripts/` directory with development and deployment automation scripts
 - Initialize Git repository with proper `.gitignore` for Rust and Node.js projects
 

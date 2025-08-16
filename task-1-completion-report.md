@@ -42,7 +42,7 @@ This foundational task establishes the core infrastructure for the ADX CORE Temp
    - Development setup scripts
 
 4. **Development Infrastructure**
-   - Docker Compose configuration for development
+   - docker-compose configuration for development
    - Temporal server setup with PostgreSQL backend
    - Development and deployment automation scripts
    - Proper Git repository structure with `.gitignore`

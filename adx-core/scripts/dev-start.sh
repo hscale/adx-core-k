@@ -37,9 +37,9 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Check if Docker Compose is available
+# Check if docker-compose is available
 if ! command -v docker-compose > /dev/null 2>&1; then
-    print_error "Docker Compose is not installed. Please install Docker Compose and try again."
+    print_error "docker-compose is not installed. Please install docker-compose and try again."
     exit 1
 fi
 

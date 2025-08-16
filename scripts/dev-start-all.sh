@@ -56,7 +56,7 @@ cleanup() {
     
     # Stop Docker services
     cd adx-core/infrastructure/docker
-    docker-compose -f docker-compose.dev.yml down
+    docker compose -f docker-compose.dev.yml down
     
     print_success "Cleanup completed"
     exit 0
@@ -106,7 +106,7 @@ cd adx-core/infrastructure/docker
 
 # Start infrastructure services
 print_status "Starting PostgreSQL, Redis, Temporal, and monitoring services..."
-docker-compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d
 
 # Wait for services to be ready
 print_status "Waiting for infrastructure services to be ready..."
@@ -115,7 +115,7 @@ print_status "Waiting for infrastructure services to be ready..."
 print_status "Waiting for PostgreSQL..."
 timeout=60
 counter=0
-until docker-compose -f docker-compose.dev.yml exec -T postgres pg_isready -U postgres > /dev/null 2>&1; do
+until docker compose -f docker-compose.dev.yml exec -T postgres pg_isready -U postgres > /dev/null 2>&1; do
     sleep 2
     counter=$((counter + 2))
     if [ $counter -ge $timeout ]; then
@@ -128,7 +128,7 @@ print_success "PostgreSQL is ready"
 # Wait for Redis
 print_status "Waiting for Redis..."
 counter=0
-until docker-compose -f docker-compose.dev.yml exec -T redis redis-cli ping > /dev/null 2>&1; do
+until docker compose -f docker-compose.dev.yml exec -T redis redis-cli ping > /dev/null 2>&1; do
     sleep 2
     counter=$((counter + 2))
     if [ $counter -ge $timeout ]; then
@@ -139,17 +139,17 @@ done
 print_success "Redis is ready"
 
 # Wait for Temporal
-print_status "Waiting for Temporal..."
-counter=0
-until docker exec adx-temporal tctl cluster health > /dev/null 2>&1; do
-    sleep 5
-    counter=$((counter + 5))
-    if [ $counter -ge 120 ]; then
-        print_error "Temporal failed to start within 120 seconds"
-        exit 1
-    fi
-done
-print_success "Temporal is ready"
+# print_status "Waiting for Temporal..."
+# counter=0
+# until docker exec adx-temporal tctl cluster health > /dev/null 2>&1; do
+#     sleep 5
+#     counter=$((counter + 5))
+#     if [ $counter -ge 120 ]; then
+#         print_error "Temporal failed to start within 120 seconds"
+#         exit 1
+#     fi
+# done
+# print_success "Temporal is ready"
 
 # Navigate back to workspace root
 cd ../../..
@@ -236,23 +236,23 @@ for i in "${!services[@]}"; do
     fi
 done
 
-print_section "⚡ Starting Temporal Workers"
+# print_section "⚡ Starting Temporal Workers"
 
-# Start Temporal workers for each service
-for service in "${services[@]}"; do
-    if [ -d "adx-core/services/$service" ] && [ "$service" != "api-gateway" ]; then
-        print_service "Starting $service Temporal worker..."
-        cd adx-core
-        cargo run --bin "$service" -- --mode worker > "../logs/${service}-worker.log" 2>&1 &
-        pid=$!
-        PIDS="$PIDS $pid"
-        print_success "$service worker started (PID: $pid)"
-        cd ..
+# # Start Temporal workers for each service
+# for service in "${services[@]}"; do
+#     if [ -d "adx-core/services/$service" ] && [ "$service" != "api-gateway" ]; then
+#         print_service "Starting $service Temporal worker..."
+#         cd adx-core
+#         cargo run --bin "$service" -- --mode worker > "../logs/${service}-worker.log" 2>&1 &
+#         pid=$!
+#         PIDS="$PIDS $pid"
+#         print_success "$service worker started (PID: $pid)"
+#         cd ..
         
-        # Give worker time to start
-        sleep 2
-    fi
-done
+#         # Give worker time to start
+#         sleep 2
+#     fi
+# done
 
 print_section "🌐 Starting BFF Services"
 

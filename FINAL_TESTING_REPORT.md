@@ -19,9 +19,9 @@
    - **Files Fixed**: `adx-core/services/shared/src/bin/db-manager.rs`
    - **Impact**: Database management tools now compile and function correctly
 
-3. **Docker Compose Compatibility** ✅
+3. **docker-compose Compatibility** ✅
    - **Issue**: Scripts only supported legacy `docker-compose` command
-   - **Fix**: Added support for both `docker-compose` and `docker compose`
+   - **Fix**: Added support for both `docker-compose` and `docker-compose`
    - **Impact**: Enhanced compatibility across different Docker installations
 
 ### 🧪 Comprehensive Testing Infrastructure Created

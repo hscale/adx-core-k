@@ -462,7 +462,7 @@ describe('Workflow Performance', () => {
 
 ### Development Environment
 
-**Docker Compose Integration:**
+**docker compose Integration:**
 ```yaml
 # Add to existing docker-compose.dev.yml
 services:
