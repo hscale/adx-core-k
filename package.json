@@ -16,8 +16,11 @@
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules bff-services/*/node_modules tools/*/node_modules"
   },
   "devDependencies": {
-    "typescript": "^5.2.2",
     "eslint": "^8.53.0",
-    "prettier": "^3.1.0"
+    "prettier": "^3.1.0",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "@octokit/rest": "^22.0.0"
   }
 }

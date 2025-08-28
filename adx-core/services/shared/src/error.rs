@@ -1,17 +1,16 @@
+// Error handling for ADX Core services
+
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, ServiceError>;
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum ServiceError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
     
     #[error("Redis error: {0}")]
     Redis(#[from] redis::RedisError),
-    
-    #[error("Temporal error: {0}")]
-    Temporal(String),
     
     #[error("Authentication error: {0}")]
     Authentication(String),
@@ -19,66 +18,60 @@ pub enum Error {
     #[error("Authorization error: {0}")]
     Authorization(String),
     
+    #[error("Tenant error: {0}")]
+    Tenant(String),
+    
     #[error("Validation error: {0}")]
     Validation(String),
+    
+    #[error("Temporal workflow error: {0}")]
+    Workflow(String),
+    
+    #[error("External service error: {0}")]
+    ExternalService(String),
     
     #[error("Configuration error: {0}")]
     Configuration(String),
     
-    #[error("Config error: {0}")]
-    Config(#[from] config::ConfigError),
-    
-    #[error("Network error: {0}")]
-    Network(String),
-    
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
-    
-    #[error("HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
-    
-    #[error("Internal error: {0}")]
+    #[error("Internal server error: {0}")]
     Internal(String),
-    
-    #[error("Not found: {0}")]
-    NotFound(String),
-    
-    #[error("Conflict: {0}")]
-    Conflict(String),
-    
-    #[error("Rate limit exceeded")]
-    RateLimitExceeded,
-    
-    #[error("Quota exceeded: {0}")]
-    QuotaExceeded(String),
-    
-    #[error("Tenant error: {0}")]
-    Tenant(String),
-    
-    #[error("Workflow error: {0}")]
-    Workflow(String),
-    
-    #[error("Activity error: {0}")]
-    Activity(String),
 }
 
-impl Error {
+impl ServiceError {
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,
-            Error::Database(_) | Error::Redis(_) | Error::Http(_) | Error::Temporal(_)
+            ServiceError::Database(_) | ServiceError::Redis(_) | ServiceError::ExternalService(_)
         )
     }
     
     pub fn status_code(&self) -> u16 {
         match self {
-            Error::Authentication(_) => 401,
-            Error::Authorization(_) => 403,
-            Error::NotFound(_) => 404,
-            Error::Validation(_) | Error::Conflict(_) => 400,
-            Error::RateLimitExceeded => 429,
-            Error::QuotaExceeded(_) => 429,
+            ServiceError::Authentication(_) => 401,
+            ServiceError::Authorization(_) => 403,
+            ServiceError::Validation(_) => 400,
+            ServiceError::Tenant(_) => 404,
             _ => 500,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_status_codes() {
+        assert_eq!(ServiceError::Authentication("test".to_string()).status_code(), 401);
+        assert_eq!(ServiceError::Authorization("test".to_string()).status_code(), 403);
+        assert_eq!(ServiceError::Validation("test".to_string()).status_code(), 400);
+        assert_eq!(ServiceError::Internal("test".to_string()).status_code(), 500);
+    }
+
+    #[test]
+    fn test_error_retryable() {
+        assert!(ServiceError::ExternalService("test".to_string()).is_retryable());
+        assert!(!ServiceError::Authentication("test".to_string()).is_retryable());
+        assert!(!ServiceError::Validation("test".to_string()).is_retryable());
     }
 }

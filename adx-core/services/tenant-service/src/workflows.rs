@@ -297,6 +297,219 @@ impl TenantWorkflows {
 
         Ok(())
     }
+
+    // Tenant monitoring workflow - continuous resource tracking and alerts
+    pub async fn tenant_monitoring_workflow(
+        &self,
+        tenant_id: TenantId,
+        monitoring_config: TenantMonitoringConfig,
+    ) -> Result<(), WorkflowError> {
+        tracing::info!("Starting tenant monitoring workflow for tenant: {}", tenant_id);
+
+        // This would implement continuous monitoring logic:
+        // 1. Monitor resource usage (CPU, memory, storage, API calls)
+        // 2. Check quota limits and usage patterns
+        // 3. Generate alerts for threshold breaches
+        // 4. Track performance metrics
+        // 5. Generate usage reports
+        // 6. Predict resource needs
+
+        loop {
+            // Monitor tenant usage
+            let usage_result = self.activities
+                .monitor_tenant_usage(crate::activities::MonitorTenantUsageRequest {
+                    tenant_id: tenant_id.clone(),
+                    metrics: monitoring_config.metrics.clone(),
+                    time_window: monitoring_config.check_interval,
+                })
+                .await
+                .map_err(|e| WorkflowError::ActivityFailed {
+                    activity: "monitor_tenant_usage".to_string(),
+                    error: e.to_string(),
+                })?;
+
+            // Check for threshold breaches
+            for alert in usage_result.alerts {
+                tracing::warn!("Tenant {} alert: {} - {}", tenant_id, alert.metric, alert.message);
+                
+                // Send alert notification
+                self.activities
+                    .send_tenant_alert(crate::activities::SendTenantAlertRequest {
+                        tenant_id: tenant_id.clone(),
+                        alert_type: alert.alert_type,
+                        message: alert.message,
+                        severity: alert.severity,
+                    })
+                    .await
+                    .map_err(|e| WorkflowError::ActivityFailed {
+                        activity: "send_tenant_alert".to_string(),
+                        error: e.to_string(),
+                    })?;
+            }
+
+            // Process billing if needed
+            if usage_result.billing_required {
+                self.activities
+                    .process_tenant_billing(crate::activities::ProcessTenantBillingRequest {
+                        tenant_id: tenant_id.clone(),
+                        usage_data: usage_result.usage_data,
+                        billing_period: usage_result.billing_period,
+                    })
+                    .await
+                    .map_err(|e| WorkflowError::ActivityFailed {
+                        activity: "process_tenant_billing".to_string(),
+                        error: e.to_string(),
+                    })?;
+            }
+
+            // Wait for next monitoring cycle
+            tokio::time::sleep(tokio::time::Duration::from_secs(monitoring_config.check_interval)).await;
+
+            // Check if monitoring should continue
+            if !monitoring_config.continuous {
+                break;
+            }
+        }
+
+        tracing::info!("Completed tenant monitoring workflow for tenant: {}", tenant_id);
+        Ok(())
+    }
+
+    // Tenant upgrade workflow - upgrade subscription tier with payment processing
+    pub async fn tenant_upgrade_workflow(
+        &self,
+        request: TenantUpgradeWorkflowRequest,
+    ) -> Result<TenantUpgradeWorkflowResult, WorkflowError> {
+        tracing::info!("Starting tenant upgrade workflow for tenant: {} to tier: {:?}", 
+                      request.tenant_id, request.target_tier);
+
+        // Step 1: Validate upgrade request
+        let validation = self.activities
+            .validate_tenant_upgrade(crate::activities::ValidateTenantUpgradeRequest {
+                tenant_id: request.tenant_id.clone(),
+                current_tier: request.current_tier.clone(),
+                target_tier: request.target_tier.clone(),
+            })
+            .await
+            .map_err(|e| WorkflowError::ActivityFailed {
+                activity: "validate_tenant_upgrade".to_string(),
+                error: e.to_string(),
+            })?;
+
+        if !validation.is_valid {
+            return Err(WorkflowError::ValidationFailed(validation.errors));
+        }
+
+        // Step 2: Calculate pricing and create payment intent
+        let payment_intent = self.activities
+            .create_upgrade_payment_intent(crate::activities::CreateUpgradePaymentIntentRequest {
+                tenant_id: request.tenant_id.clone(),
+                target_tier: request.target_tier.clone(),
+                payment_method: request.payment_method,
+                proration: request.proration,
+            })
+            .await
+            .map_err(|e| WorkflowError::ActivityFailed {
+                activity: "create_upgrade_payment_intent".to_string(),
+                error: e.to_string(),
+            })?;
+
+        // Step 3: Process payment
+        let payment_result = self.activities
+            .process_upgrade_payment(crate::activities::ProcessUpgradePaymentRequest {
+                payment_intent_id: payment_intent.id,
+                tenant_id: request.tenant_id.clone(),
+            })
+            .await
+            .map_err(|e| {
+                // If payment fails, cancel the payment intent
+                let cleanup_tenant_id = request.tenant_id.clone();
+                let cleanup_payment_id = payment_intent.id.clone();
+                let activities = self.activities.clone();
+                tokio::spawn(async move {
+                    if let Err(cleanup_err) = activities.cancel_payment_intent(&cleanup_payment_id).await {
+                        tracing::error!("Failed to cancel payment intent for tenant {}: {}", 
+                                      cleanup_tenant_id, cleanup_err);
+                    }
+                });
+
+                WorkflowError::ActivityFailed {
+                    activity: "process_upgrade_payment".to_string(),
+                    error: e.to_string(),
+                }
+            })?;
+
+        // Step 4: Backup current tenant configuration
+        let backup = self.activities
+            .backup_tenant_config(crate::activities::BackupTenantConfigRequest {
+                tenant_id: request.tenant_id.clone(),
+            })
+            .await
+            .map_err(|e| WorkflowError::ActivityFailed {
+                activity: "backup_tenant_config".to_string(),
+                error: e.to_string(),
+            })?;
+
+        // Step 5: Upgrade tenant configuration
+        let upgrade_result = self.activities
+            .upgrade_tenant_config(crate::activities::UpgradeTenantConfigRequest {
+                tenant_id: request.tenant_id.clone(),
+                target_tier: request.target_tier.clone(),
+                new_quotas: validation.new_quotas,
+                new_features: validation.new_features,
+            })
+            .await
+            .map_err(|e| {
+                // If upgrade fails, restore from backup and refund payment
+                let cleanup_tenant_id = request.tenant_id.clone();
+                let cleanup_backup_id = backup.backup_id.clone();
+                let cleanup_payment_id = payment_result.payment_id.clone();
+                let activities = self.activities.clone();
+                tokio::spawn(async move {
+                    // Restore backup
+                    if let Err(restore_err) = activities.restore_tenant_config(&cleanup_backup_id).await {
+                        tracing::error!("Failed to restore tenant config for {}: {}", 
+                                      cleanup_tenant_id, restore_err);
+                    }
+                    // Refund payment
+                    if let Err(refund_err) = activities.refund_payment(&cleanup_payment_id).await {
+                        tracing::error!("Failed to refund payment for tenant {}: {}", 
+                                      cleanup_tenant_id, refund_err);
+                    }
+                });
+
+                WorkflowError::ActivityFailed {
+                    activity: "upgrade_tenant_config".to_string(),
+                    error: e.to_string(),
+                }
+            })?;
+
+        // Step 6: Send upgrade confirmation
+        self.activities
+            .send_upgrade_confirmation(crate::activities::SendUpgradeConfirmationRequest {
+                tenant_id: request.tenant_id.clone(),
+                old_tier: request.current_tier,
+                new_tier: request.target_tier.clone(),
+                payment_amount: payment_result.amount,
+                effective_date: upgrade_result.effective_date,
+            })
+            .await
+            .map_err(|e| WorkflowError::ActivityFailed {
+                activity: "send_upgrade_confirmation".to_string(),
+                error: e.to_string(),
+            })?;
+
+        tracing::info!("Successfully upgraded tenant: {} to tier: {:?}", 
+                      request.tenant_id, request.target_tier);
+
+        Ok(TenantUpgradeWorkflowResult {
+            tenant_id: request.tenant_id,
+            old_tier: request.current_tier,
+            new_tier: request.target_tier,
+            payment_id: payment_result.payment_id,
+            effective_date: upgrade_result.effective_date,
+        })
+    }
 }
 
 // Workflow factory for creating workflow instances

@@ -1,0 +1,22 @@
+{
+  "name": "@adx-core/shared-context",
+  "version": "1.0.0",
+  "description": "Shared context providers for ADX Core micro-frontends",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "typescript": "^5.2.2"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  }
+}

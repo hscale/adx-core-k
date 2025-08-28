@@ -1,0 +1,36 @@
+{
+  "navigation": {
+    "dashboard": "Tableau de bord",
+    "users": "Utilisateurs",
+    "files": "Fichiers",
+    "workflows": "Flux de travail",
+    "modules": "Modules",
+    "tenant": "Locataire"
+  },
+  "dashboard": {
+    "welcome": "Bienvenue, {{name}} !",
+    "currentTenant": "Locataire actuel : {{tenant}}",
+    "quickActions": {
+      "title": "Actions Rapides",
+      "uploadFile": "Télécharger un Fichier",
+      "uploadFileDesc": "Télécharger et traiter des fichiers",
+      "manageUsers": "Gérer les Utilisateurs",
+      "manageUsersDesc": "Ajouter et gérer les utilisateurs",
+      "viewWorkflows": "Voir les Flux",
+      "viewWorkflowsDesc": "Surveiller l'état des flux",
+      "browseModules": "Parcourir les Modules",
+      "browseModulesDesc": "Découvrir de nouveaux modules",
+      "getStarted": "Commencer"
+    },
+    "stats": {
+      "totalUsers": "Total des Utilisateurs",
+      "totalFiles": "Total des Fichiers",
+      "activeWorkflows": "Flux Actifs",
+      "installedModules": "Modules Installés"
+    },
+    "recentActivity": {
+      "title": "Activité Récente",
+      "noActivity": "Aucune activité récente"
+    }
+  }
+}

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { GitHubClient } from './src/services/GitHubClient';
-import { ConfigManager } from './src/config/ConfigManager';
-import { logger } from './src/utils/logger';
-import { KiroTask } from './src/config/types';
+import { GitHubClient } from './src/services/GitHubClient.js';
+import { ConfigManager } from './src/config/ConfigManager.js';
+import { logger } from './src/utils/logger.js';
+import { KiroTask } from './src/config/types.js';
 
 /**
  * Comprehensive GitHub Task Sync Handler for ADX Core Tasks

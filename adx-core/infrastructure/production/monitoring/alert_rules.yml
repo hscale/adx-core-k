@@ -1,0 +1,140 @@
+# ADX Core Production Alert Rules
+groups:
+  - name: adx-core-services
+    rules:
+      # Service Health Alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate is {{ $value }} errors per second on {{ $labels.job }}."
+
+      # Performance Alerts
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time on {{ $labels.job }}"
+          description: "95th percentile response time is {{ $value }}s on {{ $labels.job }}."
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.job }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.job }}."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "Memory usage is {{ $value }}MB on {{ $labels.job }}."
+
+  - name: temporal-workflows
+    rules:
+      # Temporal Workflow Alerts
+      - alert: WorkflowFailureRate
+        expr: rate(temporal_workflow_completed_total{status="failed"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High workflow failure rate"
+          description: "Workflow failure rate is {{ $value }} failures per second."
+
+      - alert: WorkflowQueueBacklog
+        expr: temporal_workflow_task_queue_depth > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High workflow queue backlog"
+          description: "Workflow queue depth is {{ $value }} tasks."
+
+      - alert: LongRunningWorkflow
+        expr: temporal_workflow_execution_time_seconds > 300
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Long running workflow detected"
+          description: "Workflow {{ $labels.workflow_type }} has been running for {{ $value }} seconds."
+
+  - name: database
+    rules:
+      # Database Alerts
+      - alert: DatabaseConnectionsHigh
+        expr: pg_stat_database_numbackends > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connections"
+          description: "Database has {{ $value }} active connections."
+
+      - alert: DatabaseSlowQueries
+        expr: rate(pg_stat_database_tup_returned[5m]) / rate(pg_stat_database_tup_fetched[5m]) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database slow queries detected"
+          description: "Query efficiency is {{ $value }}."
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is {{ $value }}%."
+
+  - name: infrastructure
+    rules:
+      # Infrastructure Alerts
+      - alert: DiskSpaceHigh
+        expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space usage high"
+          description: "Disk usage is {{ $value }}% on {{ $labels.device }}."
+
+      - alert: SystemLoadHigh
+        expr: node_load1 > 4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "System load high"
+          description: "System load is {{ $value }}."
+
+      - alert: NetworkErrorsHigh
+        expr: rate(node_network_receive_errs_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High network errors"
+          description: "Network error rate is {{ $value }} errors per second on {{ $labels.device }}."

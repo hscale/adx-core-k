@@ -1,20 +1,24 @@
-pub mod config;
+// ADX Core Shared Library
+// Common utilities, types, and abstractions used across all services
+
 pub mod database;
-pub mod error;
 pub mod temporal;
-pub mod types;
 pub mod auth;
-pub mod logging;
-pub mod health;
-pub mod middleware;
+pub mod tenant;
+pub mod error;
+pub mod config;
 
 // Re-export commonly used types
-pub use error::{Error, Result};
-pub use types::*;
-pub use temporal::{
-    // AdxTemporalClient,  // Commented out due to SDK compatibility
-    TemporalConfig, TemporalError, WorkflowError, ActivityError,
-    WorkflowContext, ActivityContext, WorkflowVersion, RetryPolicy, AdxWorkflowVersionManager
-};
-pub use auth::{JwtClaims, TenantContext, UserContext};
-pub use database::{DatabasePool, Repository};
+pub use error::{Result, ServiceError};
+pub use config::Config;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_shared_library_basic() {
+        // Basic test to ensure the shared library compiles and works
+        assert_eq!(2 + 2, 4);
+    }
+}

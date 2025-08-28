@@ -268,3 +268,29 @@ pub struct SwitchTenantWorkflowResult {
     pub tenant_context: TenantContext,
     pub available_features: Vec<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TenantMonitoringConfig {
+    pub metrics: Vec<String>,
+    pub check_interval: u64, // seconds
+    pub continuous: bool,
+    pub alert_thresholds: std::collections::HashMap<String, f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TenantUpgradeWorkflowRequest {
+    pub tenant_id: TenantId,
+    pub current_tier: SubscriptionTier,
+    pub target_tier: SubscriptionTier,
+    pub payment_method: String,
+    pub proration: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TenantUpgradeWorkflowResult {
+    pub tenant_id: TenantId,
+    pub old_tier: SubscriptionTier,
+    pub new_tier: SubscriptionTier,
+    pub payment_id: String,
+    pub effective_date: DateTime<Utc>,
+}

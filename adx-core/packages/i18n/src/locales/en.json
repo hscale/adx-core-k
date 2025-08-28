@@ -1,0 +1,36 @@
+{
+  "navigation": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "files": "Files",
+    "workflows": "Workflows",
+    "modules": "Modules",
+    "tenant": "Tenant"
+  },
+  "dashboard": {
+    "welcome": "Welcome, {{name}}!",
+    "currentTenant": "Current tenant: {{tenant}}",
+    "quickActions": {
+      "title": "Quick Actions",
+      "uploadFile": "Upload File",
+      "uploadFileDesc": "Upload and process files",
+      "manageUsers": "Manage Users",
+      "manageUsersDesc": "Add and manage users",
+      "viewWorkflows": "View Workflows",
+      "viewWorkflowsDesc": "Monitor workflow status",
+      "browseModules": "Browse Modules",
+      "browseModulesDesc": "Discover new modules",
+      "getStarted": "Get Started"
+    },
+    "stats": {
+      "totalUsers": "Total Users",
+      "totalFiles": "Total Files",
+      "activeWorkflows": "Active Workflows",
+      "installedModules": "Installed Modules"
+    },
+    "recentActivity": {
+      "title": "Recent Activity",
+      "noActivity": "No recent activity"
+    }
+  }
+}

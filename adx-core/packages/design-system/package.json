@@ -1,0 +1,43 @@
+{
+  "name": "@adx-core/design-system",
+  "version": "1.0.0",
+  "description": "Shared design system for ADX Core micro-frontends",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc && vite build",
+    "dev": "vite build --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@mui/material": "^5.14.20",
+    "@mui/icons-material": "^5.14.19",
+    "@mui/system": "^5.14.20",
+    "clsx": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "vitest": "^1.0.4",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/jest-dom": "^6.1.5"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}

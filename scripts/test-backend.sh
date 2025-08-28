@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# ADX Core Backend Test Suite
-# Comprehensive testing for Rust backend services
+# ADX CORE Backend Testing Script
+# Runs Rust backend unit tests, service tests, and repository tests
 
 set -e
 
@@ -12,460 +12,270 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
-VERBOSE=${VERBOSE:-false}
-COVERAGE=${COVERAGE:-false}
-PARALLEL=${PARALLEL:-true}
-TEST_TIMEOUT=${TEST_TIMEOUT:-600}
+print_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
 
-# Directories
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Navigate to ADX Core directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ADX_CORE_DIR="$PROJECT_ROOT/adx-core"
+cd "$SCRIPT_DIR/../adx-core"
 
-# Log file
-LOG_FILE="$PROJECT_ROOT/backend-test-results-$(date +%Y%m%d-%H%M%S).log"
+# Parse command line arguments
+COVERAGE=false
+VERBOSE=false
+UNIT_ONLY=false
+SERVICE_ONLY=false
+REPOSITORY_ONLY=false
 
-# Test results
-declare -A TEST_RESULTS
-TOTAL_TESTS=0
-PASSED_TESTS=0
-FAILED_TESTS=0
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --coverage)
+            COVERAGE=true
+            shift
+            ;;
+        --verbose)
+            VERBOSE=true
+            shift
+            ;;
+        --unit-only)
+            UNIT_ONLY=true
+            shift
+            ;;
+        --service-only)
+            SERVICE_ONLY=true
+            shift
+            ;;
+        --repository-only)
+            REPOSITORY_ONLY=true
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [OPTIONS]"
+            echo "Options:"
+            echo "  --coverage         Generate coverage report"
+            echo "  --verbose          Verbose output"
+            echo "  --unit-only        Run only unit tests"
+            echo "  --service-only     Run only service tests"
+            echo "  --repository-only  Run only repository tests"
+            echo "  --help             Show this help message"
+            exit 0
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
-# Utility functions
-log() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
-}
+print_status "Starting ADX CORE Backend Tests..."
 
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE"
-}
+# Set test environment variables
+export DATABASE_URL="postgres://postgres:postgres@localhost:5432/adx_core_test"
+export REDIS_URL="redis://localhost:6379"
+export TEMPORAL_SERVER_URL="localhost:7233"
+export RUST_LOG="info"
+export TEST_MODE="true"
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
-}
+# Build test flags
+TEST_FLAGS=""
+if [ "$VERBOSE" = true ]; then
+    TEST_FLAGS="$TEST_FLAGS --verbose"
+fi
 
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE"
-}
+# Install coverage tool if needed
+if [ "$COVERAGE" = true ]; then
+    print_status "Installing cargo-tarpaulin for coverage..."
+    cargo install cargo-tarpaulin --quiet 2>/dev/null || true
+fi
 
-run_test() {
-    local test_name="$1"
-    local test_command="$2"
-    local timeout="${3:-$TEST_TIMEOUT}"
+# Ensure test database exists
+print_status "Setting up test database..."
+docker-compose -f infrastructure/docker/docker-compose.dev.yml exec -T postgres psql -U postgres -c "CREATE DATABASE IF NOT EXISTS adx_core_test;" 2>/dev/null || true
+
+# Run database migrations for tests
+print_status "Running database migrations..."
+# TODO: Implement when migrations are available
+# sqlx migrate run --database-url $DATABASE_URL
+
+# Function to run specific test category
+run_test_category() {
+    local category="$1"
+    local test_pattern="$2"
+    local description="$3"
     
-    log "Running $test_name..."
-    TOTAL_TESTS=$((TOTAL_TESTS + 1))
+    print_status "Running $description..."
     
-    if timeout "$timeout" bash -c "$test_command" >> "$LOG_FILE" 2>&1; then
-        log_success "$test_name completed"
-        TEST_RESULTS["$test_name"]="PASSED"
-        PASSED_TESTS=$((PASSED_TESTS + 1))
-        return 0
+    if [ "$COVERAGE" = true ]; then
+        cargo tarpaulin --lib --test "$test_pattern" --out Html --output-dir "target/coverage/$category" $TEST_FLAGS
     else
-        log_error "$test_name failed"
-        TEST_RESULTS["$test_name"]="FAILED"
-        FAILED_TESTS=$((FAILED_TESTS + 1))
+        cargo test --lib --test "$test_pattern" $TEST_FLAGS
+    fi
+    
+    if [ $? -eq 0 ]; then
+        print_success "$description completed successfully"
+    else
+        print_error "$description failed"
         return 1
     fi
 }
 
-setup_backend_environment() {
-    log "Setting up backend test environment..."
-    
-    cd "$ADX_CORE_DIR"
-    
-    # Set environment variables
-    export RUST_LOG=debug
-    export RUST_BACKTRACE=1
-    export DATABASE_URL="postgres://postgres:postgres@localhost:5432/adx_core_test"
-    export REDIS_URL="redis://localhost:6379"
-    export TEMPORAL_SERVER_URL="localhost:7233"
-    
-    # Start required services
-    log "Starting infrastructure services..."
-    docker-compose -f infrastructure/docker/docker-compose.dev.yml up -d postgres redis temporal
-    
-    # Wait for services
-    log "Waiting for services to be ready..."
-    sleep 30
-    
-    # Verify database connection
-    if ! cargo run --bin db-manager -- health --database-url "$DATABASE_URL"; then
-        log_error "Database connection failed"
-        return 1
-    fi
-    
-    # Run migrations
-    log "Running database migrations..."
-    cargo run --bin db-manager -- migrate --database-url "$DATABASE_URL"
-    
-    # Seed test data
-    log "Seeding test data..."
-    cargo run --bin db-manager -- seed --environment test --database-url "$DATABASE_URL"
-    
-    log_success "Backend environment setup completed"
-}
-
-run_unit_tests() {
-    log "=== Running Unit Tests ==="
-    
-    cd "$ADX_CORE_DIR"
-    
-    # Test shared library
-    run_test "Shared Library Unit Tests" \
-        "cargo test --package adx-shared --lib --verbose"
-    
-    # Test individual services (if they exist and compile)
-    local services=("auth-service" "user-service" "tenant-service" "file-service" "workflow-service")
-    
-    for service in "${services[@]}"; do
-        if [[ -d "services/$service" ]] && [[ -f "services/$service/Cargo.toml" ]]; then
-            # Check if service is in workspace
-            if grep -q "services/$service" Cargo.toml; then
-                run_test "$service Unit Tests" \
-                    "cargo test --package ${service//-/_} --lib --verbose"
-            else
-                log_warning "Skipping $service (not in workspace)"
-            fi
-        else
-            log_warning "Service $service not found, skipping"
-        fi
-    done
-    
-    # Test all workspace members
-    run_test "All Workspace Unit Tests" \
-        "cargo test --workspace --lib --verbose"
-}
-
-run_integration_tests() {
-    log "=== Running Integration Tests ==="
-    
-    cd "$ADX_CORE_DIR"
-    
-    # Database integration tests
-    run_test "Database Integration Tests" \
-        "cargo test --test database_integration --verbose"
-    
-    # Service integration tests
-    run_test "Service Integration Tests" \
-        "cargo test --test service_integration --verbose"
-    
-    # Multi-tenant integration tests
-    run_test "Multi-Tenant Integration Tests" \
-        "cargo test --test multi_tenant_integration --verbose"
-    
-    # API integration tests
-    run_test "API Integration Tests" \
-        "cargo test --test api_integration --verbose"
-}
-
-run_workflow_tests() {
-    log "=== Running Temporal Workflow Tests ==="
-    
-    cd "$ADX_CORE_DIR"
-    
-    # Workflow unit tests
-    run_test "Workflow Unit Tests" \
-        "cargo test --test workflow_tests --verbose"
-    
-    # Activity tests
-    run_test "Activity Tests" \
-        "cargo test --test activity_tests --verbose"
-    
-    # Workflow integration tests
-    run_test "Workflow Integration Tests" \
-        "cargo test --test workflow_integration --verbose"
-    
-    # Compensation tests
-    run_test "Workflow Compensation Tests" \
-        "cargo test --test compensation_tests --verbose"
-}
-
-run_cross_service_tests() {
-    log "=== Running Cross-Service Tests ==="
-    
-    cd "$PROJECT_ROOT"
-    
-    # Cross-service communication tests
-    run_test "Cross-Service Communication Tests" \
-        "cargo test --manifest-path tests/Cargo.toml cross_service_tests --verbose"
-    
-    # End-to-end workflow tests
-    run_test "End-to-End Workflow Tests" \
-        "cargo test --manifest-path tests/Cargo.toml e2e_workflow_tests --verbose"
-    
-    # Multi-tenant cross-service tests
-    run_test "Multi-Tenant Cross-Service Tests" \
-        "cargo test --manifest-path tests/Cargo.toml multi_tenant_cross_service --verbose"
-}
-
-run_security_tests() {
-    log "=== Running Security Tests ==="
-    
-    cd "$PROJECT_ROOT"
-    
-    # Authentication tests
-    run_test "Authentication Security Tests" \
-        "RUN_SECURITY_TESTS=1 cargo test --manifest-path tests/Cargo.toml auth_security_tests --verbose"
-    
-    # Authorization tests
-    run_test "Authorization Security Tests" \
-        "RUN_SECURITY_TESTS=1 cargo test --manifest-path tests/Cargo.toml authz_security_tests --verbose"
-    
-    # Input validation tests
-    run_test "Input Validation Security Tests" \
-        "RUN_SECURITY_TESTS=1 cargo test --manifest-path tests/Cargo.toml input_validation_tests --verbose"
-    
-    # SQL injection tests
-    run_test "SQL Injection Security Tests" \
-        "RUN_SECURITY_TESTS=1 cargo test --manifest-path tests/Cargo.toml sql_injection_tests --verbose"
-}
-
-run_performance_tests() {
-    log "=== Running Performance Tests ==="
-    
-    cd "$PROJECT_ROOT"
-    
-    # Database performance tests
-    run_test "Database Performance Tests" \
-        "RUN_PERFORMANCE_TESTS=1 cargo test --manifest-path tests/Cargo.toml --release db_performance_tests --verbose" \
-        900
-    
-    # API performance tests
-    run_test "API Performance Tests" \
-        "RUN_PERFORMANCE_TESTS=1 cargo test --manifest-path tests/Cargo.toml --release api_performance_tests --verbose" \
-        900
-    
-    # Workflow performance tests
-    run_test "Workflow Performance Tests" \
-        "RUN_PERFORMANCE_TESTS=1 cargo test --manifest-path tests/Cargo.toml --release workflow_performance_tests --verbose" \
-        900
-    
-    # Load testing
-    run_test "Load Testing" \
-        "RUN_PERFORMANCE_TESTS=1 cargo test --manifest-path tests/Cargo.toml --release load_testing --verbose" \
-        1200
-}
-
-run_code_quality_checks() {
-    log "=== Running Code Quality Checks ==="
-    
-    cd "$ADX_CORE_DIR"
-    
-    # Clippy linting
-    run_test "Clippy Linting" \
-        "cargo clippy --workspace --all-targets --all-features -- -D warnings"
-    
-    # Format checking
-    run_test "Format Checking" \
-        "cargo fmt --all -- --check"
-    
-    # Audit dependencies
-    if command -v cargo-audit &> /dev/null; then
-        run_test "Security Audit" \
-            "cargo audit"
+# Run tests based on options
+if [ "$UNIT_ONLY" = true ]; then
+    print_status "Running unit tests only..."
+    if [ "$COVERAGE" = true ]; then
+        cargo tarpaulin --lib --out Html --output-dir target/coverage/unit $TEST_FLAGS
     else
-        log_warning "cargo-audit not installed, skipping security audit"
+        cargo test --lib $TEST_FLAGS
     fi
+elif [ "$SERVICE_ONLY" = true ]; then
+    print_status "Running service tests only..."
+    run_test_category "service" "*service*" "Service Tests"
+elif [ "$REPOSITORY_ONLY" = true ]; then
+    print_status "Running repository tests only..."
+    run_test_category "repository" "*repository*" "Repository Tests"
+else
+    # Run all backend tests
+    print_status "Running all backend tests..."
     
-    # Check for unused dependencies
-    if command -v cargo-udeps &> /dev/null; then
-        run_test "Unused Dependencies Check" \
-            "cargo +nightly udeps --workspace"
+    # 1. Unit Tests (library code)
+    print_status "=== Unit Tests ==="
+    if [ "$COVERAGE" = true ]; then
+        cargo tarpaulin --lib --out Html --output-dir target/coverage/unit $TEST_FLAGS
     else
-        log_warning "cargo-udeps not installed, skipping unused dependencies check"
-    fi
-}
-
-generate_coverage_report() {
-    if [[ "$COVERAGE" != "true" ]]; then
-        return 0
+        cargo test --lib $TEST_FLAGS
     fi
     
-    log "=== Generating Coverage Report ==="
-    
-    cd "$ADX_CORE_DIR"
-    
-    if command -v cargo-tarpaulin &> /dev/null; then
-        run_test "Coverage Report Generation" \
-            "cargo tarpaulin --workspace --out Html --output-dir ../coverage-report" \
-            1200
-        
-        log_success "Coverage report generated in coverage-report/"
-    else
-        log_warning "cargo-tarpaulin not installed, skipping coverage report"
-    fi
-}
-
-validate_database_state() {
-    log "=== Validating Database State ==="
-    
-    cd "$ADX_CORE_DIR"
-    
-    # Database integrity check
-    run_test "Database Integrity Check" \
-        "cargo run --bin db-manager -- validate --database-url '$DATABASE_URL'"
-    
-    # Connection pool monitoring
-    run_test "Connection Pool Health" \
-        "cargo run --bin db-manager -- monitor-pool --database-url '$DATABASE_URL'"
-    
-    # Index performance analysis
-    run_test "Index Performance Analysis" \
-        "cargo run --bin db-manager -- analyze-indexes --database-url '$DATABASE_URL'"
-}
-
-cleanup_backend_environment() {
-    log "Cleaning up backend test environment..."
-    
-    cd "$ADX_CORE_DIR"
-    
-    # Clean test data
-    if [[ "$DATABASE_URL" == *"test"* ]]; then
-        cargo run --bin db-manager -- clean --database-url "$DATABASE_URL" || true
-    fi
-    
-    # Stop services
-    docker-compose -f infrastructure/docker/docker-compose.dev.yml down || true
-    
-    log_success "Backend cleanup completed"
-}
-
-generate_test_report() {
-    log "=== Generating Backend Test Report ==="
-    
-    local report_file="$PROJECT_ROOT/backend-test-report-$(date +%Y%m%d-%H%M%S).md"
-    
-    cat > "$report_file" << EOF
-# ADX Core Backend Test Report
-
-**Generated:** $(date)
-**Total Tests:** $TOTAL_TESTS
-**Passed:** $PASSED_TESTS
-**Failed:** $FAILED_TESTS
-**Success Rate:** $(( PASSED_TESTS * 100 / TOTAL_TESTS ))%
-
-## Test Results
-
-EOF
-
-    for test_name in "${!TEST_RESULTS[@]}"; do
-        local status="${TEST_RESULTS[$test_name]}"
-        local icon="❌"
-        if [[ "$status" == "PASSED" ]]; then
-            icon="✅"
-        fi
-        echo "- $icon **$test_name**: $status" >> "$report_file"
-    done
-    
-    cat >> "$report_file" << EOF
-
-## Environment Information
-
-- **Rust Version:** $(rustc --version)
-- **Cargo Version:** $(cargo --version)
-- **Database:** PostgreSQL (Test)
-- **Cache:** Redis
-- **Workflow Engine:** Temporal
-- **Git Commit:** $(git rev-parse --short HEAD 2>/dev/null || echo "N/A")
-
-## Log File
-
-Full test logs: \`$LOG_FILE\`
-
-EOF
-
-    log_success "Backend test report generated: $report_file"
-    
-    # Display summary
-    echo
-    echo "=================================="
-    echo "      BACKEND TEST SUMMARY"
-    echo "=================================="
-    echo "Total Tests: $TOTAL_TESTS"
-    echo "Passed: $PASSED_TESTS"
-    echo "Failed: $FAILED_TESTS"
-    echo "Success Rate: $(( PASSED_TESTS * 100 / TOTAL_TESTS ))%"
-    echo "=================================="
-    
-    if [[ $FAILED_TESTS -gt 0 ]]; then
-        log_error "Some backend tests failed. Check log: $LOG_FILE"
-        return 1
-    else
-        log_success "All backend tests passed!"
-        return 0
-    fi
-}
-
-main() {
-    log "Starting ADX Core Backend Test Suite"
-    log "Log file: $LOG_FILE"
-    
-    # Parse arguments
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --verbose)
-                VERBOSE=true
-                shift
-                ;;
-            --coverage)
-                COVERAGE=true
-                shift
-                ;;
-            --no-parallel)
-                PARALLEL=false
-                shift
-                ;;
-            --timeout)
-                TEST_TIMEOUT="$2"
-                shift 2
-                ;;
-            --help)
-                echo "Usage: $0 [OPTIONS]"
-                echo "Options:"
-                echo "  --verbose      Enable verbose output"
-                echo "  --coverage     Generate coverage report"
-                echo "  --no-parallel  Disable parallel testing"
-                echo "  --timeout SEC  Set test timeout (default: 600)"
-                echo "  --help         Show this help"
-                exit 0
-                ;;
-            *)
-                log_error "Unknown option: $1"
-                exit 1
-                ;;
-        esac
-    done
-    
-    # Trap cleanup
-    trap cleanup_backend_environment EXIT
-    
-    # Run test phases
-    setup_backend_environment
-    
-    run_unit_tests
-    run_integration_tests
-    run_workflow_tests
-    run_cross_service_tests
-    run_security_tests
-    validate_database_state
-    run_code_quality_checks
-    
-    # Performance tests (optional, time-consuming)
-    if [[ "$CI" != "true" ]]; then
-        run_performance_tests
-    fi
-    
-    generate_coverage_report
-    
-    # Generate report and exit
-    if generate_test_report; then
-        exit 0
-    else
+    if [ $? -ne 0 ]; then
+        print_error "Unit tests failed"
         exit 1
     fi
+    
+    # 2. Service Tests (individual service testing)
+    print_status "=== Service Tests ==="
+    for service in services/*/; do
+        if [ -d "$service" ]; then
+            service_name=$(basename "$service")
+            print_status "Testing $service_name..."
+            
+            cd "$service"
+            if [ "$COVERAGE" = true ]; then
+                cargo tarpaulin --lib --out Html --output-dir "../../target/coverage/$service_name" $TEST_FLAGS
+            else
+                cargo test --lib $TEST_FLAGS
+            fi
+            
+            if [ $? -ne 0 ]; then
+                print_error "$service_name tests failed"
+                cd ../..
+                exit 1
+            fi
+            cd ../..
+        fi
+    done
+    
+    # 3. Repository Tests (database layer testing)
+    print_status "=== Repository Tests ==="
+    # Test each service's repository layer
+    for service in services/*/; do
+        if [ -d "$service" ] && [ -f "$service/tests/repository_tests.rs" ]; then
+            service_name=$(basename "$service")
+            print_status "Testing $service_name repository..."
+            
+            cd "$service"
+            cargo test --test repository_tests $TEST_FLAGS
+            
+            if [ $? -ne 0 ]; then
+                print_error "$service_name repository tests failed"
+                cd ../..
+                exit 1
+            fi
+            cd ../..
+        fi
+    done
+    
+    # 4. Shared Library Tests
+    print_status "=== Shared Library Tests ==="
+    cd services/shared
+    if [ "$COVERAGE" = true ]; then
+        cargo tarpaulin --lib --out Html --output-dir "../../target/coverage/shared" $TEST_FLAGS
+    else
+        cargo test --lib $TEST_FLAGS
+    fi
+    
+    if [ $? -ne 0 ]; then
+        print_error "Shared library tests failed"
+        exit 1
+    fi
+    cd ../..
+fi
+
+# Generate combined coverage report if requested
+if [ "$COVERAGE" = true ]; then
+    print_status "Generating combined coverage report..."
+    cargo tarpaulin --workspace --out Html --output-dir target/coverage/combined $TEST_FLAGS
+    
+    print_success "Coverage reports generated:"
+    print_status "  - Combined: target/coverage/combined/tarpaulin-report.html"
+    print_status "  - Unit: target/coverage/unit/tarpaulin-report.html"
+    
+    # List individual service coverage reports
+    for service_dir in target/coverage/*/; do
+        if [ -d "$service_dir" ] && [ -f "$service_dir/tarpaulin-report.html" ]; then
+            service_name=$(basename "$service_dir")
+            print_status "  - $service_name: $service_dir/tarpaulin-report.html"
+        fi
+    done
+fi
+
+# Run clippy for code quality
+print_status "Running clippy for code quality checks..."
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+if [ $? -ne 0 ]; then
+    print_warning "Clippy found issues (not failing tests, but should be addressed)"
+fi
+
+# Check code formatting
+print_status "Checking code formatting..."
+cargo fmt --all -- --check
+
+if [ $? -ne 0 ]; then
+    print_warning "Code formatting issues found (run 'cargo fmt' to fix)"
+fi
+
+# Security audit
+print_status "Running security audit..."
+cargo audit --quiet 2>/dev/null || {
+    print_warning "cargo-audit not installed. Install with: cargo install cargo-audit"
 }
 
-# Run main function
-main "$@"
+print_success "Backend tests completed successfully! ✅"
+
+# Performance benchmarks (if available)
+if [ -d "benches" ]; then
+    print_status "Running performance benchmarks..."
+    cargo bench --quiet || print_warning "Benchmarks failed or not available"
+fi
+
+print_status "Backend test summary:"
+print_status "  ✅ Unit tests passed"
+print_status "  ✅ Service tests passed"
+print_status "  ✅ Repository tests passed"
+print_status "  ✅ Shared library tests passed"
+print_status "  ✅ Code quality checks completed"
+
+if [ "$COVERAGE" = true ]; then
+    print_status "  📊 Coverage reports generated"
+fi

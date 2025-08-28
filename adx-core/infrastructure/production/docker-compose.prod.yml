@@ -1,314 +1,253 @@
+# ADX Core Production Docker Compose Configuration
 version: '3.8'
 
+networks:
+  adx-core-prod:
+    driver: bridge
+  monitoring:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  temporal_data:
+  prometheus_data:
+  grafana_data:
+
 services:
-  # Production Infrastructure Services
+  # Database Services
+  postgres:
+    image: postgres:14-alpine
+    container_name: adx-core-postgres-prod
+    environment:
+      POSTGRES_DB: adx_core_prod
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - adx-core-prod
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d adx_core_prod"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: adx-core-redis-prod
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - adx-core-prod
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Temporal Services
   temporal:
     image: temporalio/auto-setup:1.22.0
+    container_name: adx-core-temporal-prod
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       - DB=postgresql
       - DB_PORT=5432
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PWD=${POSTGRES_PASSWORD}
-      - POSTGRES_SEEDS=${POSTGRES_HOST}
+      - POSTGRES_SEEDS=postgres
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-      - ENABLE_ES=false
-      - ES_SEEDS=elasticsearch
-      - ES_VERSION=v7
+    networks:
+      - adx-core-prod
     ports:
       - "7233:7233"
-    volumes:
-      - ./temporal-config:/etc/temporal/config/dynamicconfig
-    depends_on:
-      - postgresql
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1.0'
-        reservations:
-          memory: 1G
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-
-  temporal-ui:
-    image: temporalio/ui:2.21.0
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=https://${DOMAIN_NAME}
-    ports:
       - "8088:8088"
-    depends_on:
-      - temporal
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  postgresql:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    ports:
-      - "5432:5432"
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          memory: 4G
-          cpus: '2.0'
-        reservations:
-          memory: 2G
-          cpus: '1.0'
-      restart_policy:
-        condition: on-failure
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          memory: 1G
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
-
-  # Backend Microservices
+  # Backend Services
   api-gateway:
-    image: adx-core/api-gateway:${VERSION}
+    build:
+      context: ../../
+      dockerfile: services/api-gateway/Dockerfile.prod
+    container_name: adx-core-api-gateway-prod
+    depends_on:
+      - postgres
+      - redis
+      - temporal
     environment:
-      - RUST_LOG=info
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
+      - RUST_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/adx_core_prod
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - TEMPORAL_SERVER_URL=temporal:7233
       - JWT_SECRET=${JWT_SECRET}
-      - CORS_ORIGINS=https://${DOMAIN_NAME}
+      - PORT=8080
+    networks:
+      - adx-core-prod
     ports:
       - "8080:8080"
-    depends_on:
-      - postgresql
-      - redis
-      - temporal
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 3
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
-      update_config:
-        parallelism: 1
-        delay: 10s
-        order: start-first
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   auth-service:
-    image: adx-core/auth-service:${VERSION}
+    build:
+      context: ../../
+      dockerfile: services/auth-service/Dockerfile.prod
+    container_name: adx-core-auth-service-prod
+    depends_on:
+      - postgres
+      - redis
+      - temporal
     environment:
-      - RUST_LOG=info
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
+      - RUST_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/adx_core_prod
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - TEMPORAL_SERVER_URL=temporal:7233
       - JWT_SECRET=${JWT_SECRET}
-      - BCRYPT_COST=12
+      - PORT=8081
+    networks:
+      - adx-core-prod
     ports:
       - "8081:8081"
-    depends_on:
-      - postgresql
-      - redis
-      - temporal
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   user-service:
-    image: adx-core/user-service:${VERSION}
+    build:
+      context: ../../
+      dockerfile: services/user-service/Dockerfile.prod
+    container_name: adx-core-user-service-prod
+    depends_on:
+      - postgres
+      - redis
+      - temporal
     environment:
-      - RUST_LOG=info
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
+      - RUST_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/adx_core_prod
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - TEMPORAL_SERVER_URL=temporal:7233
+      - PORT=8082
+    networks:
+      - adx-core-prod
     ports:
       - "8082:8082"
-    depends_on:
-      - postgresql
-      - redis
-      - temporal
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   file-service:
-    image: adx-core/file-service:${VERSION}
+    build:
+      context: ../../
+      dockerfile: services/file-service/Dockerfile.prod
+    container_name: adx-core-file-service-prod
+    depends_on:
+      - postgres
+      - redis
+      - temporal
     environment:
-      - RUST_LOG=info
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
+      - RUST_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/adx_core_prod
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - TEMPORAL_SERVER_URL=temporal:7233
-      - S3_BUCKET=${S3_BUCKET}
-      - S3_REGION=${S3_REGION}
+      - PORT=8083
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET=${S3_BUCKET}
+    networks:
+      - adx-core-prod
     ports:
       - "8083:8083"
-    depends_on:
-      - postgresql
-      - redis
-      - temporal
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 1G
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
-
-  workflow-service:
-    image: adx-core/workflow-service:${VERSION}
-    environment:
-      - RUST_LOG=info
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
-      - TEMPORAL_SERVER_URL=temporal:7233
-    ports:
-      - "8084:8084"
-    depends_on:
-      - postgresql
-      - redis
-      - temporal
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   tenant-service:
-    image: adx-core/tenant-service:${VERSION}
-    environment:
-      - RUST_LOG=info
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
-      - TEMPORAL_SERVER_URL=temporal:7233
-    ports:
-      - "8085:8085"
+    build:
+      context: ../../
+      dockerfile: services/tenant-service/Dockerfile.prod
+    container_name: adx-core-tenant-service-prod
     depends_on:
-      - postgresql
+      - postgres
       - redis
       - temporal
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
-
-  # BFF Services
-  auth-bff:
-    image: adx-core/auth-bff:${VERSION}
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
+      - RUST_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/adx_core_prod
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - TEMPORAL_SERVER_URL=temporal:7233
-      - API_GATEWAY_URL=http://api-gateway:8080
-    ports:
-      - "4001:4001"
-    depends_on:
-      - api-gateway
-      - redis
+      - PORT=8085
     networks:
-      - adx-core-network
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
+      - adx-core-prod
+    ports:
+      - "8085:8085"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  tenant-bff:
-    image: adx-core/tenant-bff:${VERSION}
+  workflow-service:
+    build:
+      context: ../../
+      dockerfile: services/workflow-service/Dockerfile.prod
+    container_name: adx-core-workflow-service-prod
+    depends_on:
+      - postgres
+      - redis
+      - temporal
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
+      - RUST_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/adx_core_prod
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - TEMPORAL_SERVER_URL=temporal:7233
-      - API_GATEWAY_URL=http://api-gateway:8080
-    ports:
-      - "4002:4002"
-    depends_on:
-      - api-gateway
-      - redis
+      - PORT=8084
     networks:
-      - adx-core-network
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-      restart_policy:
-        condition: on-failure
+      - adx-core-prod
+    ports:
+      - "8084:8084"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Monitoring Stack
+  # Monitoring Services
   prometheus:
-    image: prom/prometheus:v2.45.0
+    image: prom/prometheus:latest
+    container_name: adx-core-prometheus-prod
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -319,129 +258,67 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
+    networks:
+      - adx-core-prod
+      - monitoring
     ports:
       - "9090:9090"
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1.0'
+    restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:10.0.0
+    image: grafana/grafana:latest
+    container_name: adx-core-grafana-prod
     environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
-    ports:
-      - "3000:3000"
-    depends_on:
-      - prometheus
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     networks:
-      - adx-core-network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
+      - monitoring
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
 
+  # Log Aggregation
   loki:
-    image: grafana/loki:2.8.0
+    image: grafana/loki:latest
+    container_name: adx-core-loki-prod
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
-      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml
-      - loki_data:/loki
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml
+    networks:
+      - monitoring
     ports:
       - "3100:3100"
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          memory: 1G
-          cpus: '0.5'
+    restart: unless-stopped
 
   promtail:
-    image: grafana/promtail:2.8.0
+    image: grafana/promtail:latest
+    container_name: adx-core-promtail-prod
     command: -config.file=/etc/promtail/config.yml
     volumes:
-      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
       - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     networks:
-      - adx-core-network
-    deploy:
-      mode: global
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
+      - monitoring
+    restart: unless-stopped
 
-  alertmanager:
-    image: prom/alertmanager:v0.25.0
-    command:
-      - '--config.file=/etc/alertmanager/config.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
-    volumes:
-      - ./monitoring/alertmanager/config.yml:/etc/alertmanager/config.yml
-      - alertmanager_data:/alertmanager
-    ports:
-      - "9093:9093"
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-
-  # Load Balancer
+  # Reverse Proxy
   nginx:
-    image: nginx:1.25-alpine
+    image: nginx:alpine
+    container_name: adx-core-nginx-prod
+    depends_on:
+      - api-gateway
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/ssl:/etc/nginx/ssl
+    networks:
+      - adx-core-prod
     ports:
       - "80:80"
       - "443:443"
-    depends_on:
-      - api-gateway
-    networks:
-      - adx-core-network
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-      restart_policy:
-        condition: on-failure
-
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-  prometheus_data:
-    driver: local
-  grafana_data:
-    driver: local
-  loki_data:
-    driver: local
-  alertmanager_data:
-    driver: local
-
-networks:
-  adx-core-network:
-    driver: overlay
-    attachable: true
+    restart: unless-stopped

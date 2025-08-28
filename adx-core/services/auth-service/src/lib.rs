@@ -1,12 +1,12 @@
 // Auth service library for testing
-pub mod models;
-pub mod repository;
-pub mod service;
-pub mod workflows;
 pub mod activities;
+pub mod handlers;
+pub mod middleware;
+pub mod repositories;
+pub mod routes;
+pub mod server;
+pub mod worker;
+pub mod workflows;
 
-pub use models::*;
-pub use repository::*;
-pub use service::*;
-pub use workflows::*;
-pub use activities::*;
+pub use server::*;
+pub use worker::*;

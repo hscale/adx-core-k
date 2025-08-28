@@ -1,18 +1,17 @@
 [workspace]
 members = [
     "services/shared",
-    # Temporarily excluding services with compilation issues for quick dev setup
-    # "services/api-gateway",
-    # "services/auth-service",
-    # "services/user-service", 
-    # "services/file-service",
-    # "services/tenant-service",
-    # "services/workflow-service",
-    # "services/ai-service",
-    # "services/module-service",
-    # "services/white-label-service",
-    # "services/license-service",
-    # "services/security-service",
+    "services/auth-service",
+    "services/user-service", 
+    "services/file-service",
+    "services/tenant-service",
+    "services/workflow-service",
+    "services/api-gateway",
+    "services/ai-service",
+    "services/module-service",
+    "services/white-label-service",
+    "services/license-service",
+    "services/security-service",
 ]
 
 resolver = "2"
