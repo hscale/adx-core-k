@@ -178,8 +178,10 @@ class ADXCoreTaskSync {
                 continue;
             }
 
-            // Parse task items
-            const taskMatch = line.match(/^- \[([ x-])\] (\d+)\. (.+)$/);
+            // Parse task items - handle both simple numbers (1.) and complex numbers (1.1, 10.1, etc.)
+            // Also handle Windows line endings by trimming the line first
+            const trimmedLine = line.trim();
+            const taskMatch = trimmedLine.match(/^- \[([ x-])\] (\d+(?:\.\d+)*)\. (.+)$/);
             if (taskMatch) {
                 const [, statusChar, taskId, title] = taskMatch;
                 const status = statusChar === 'x' ? 'completed' : 
