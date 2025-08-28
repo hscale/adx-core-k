@@ -212,6 +212,9 @@ impl RetryPolicy {
             TemporalError::TaskQueueError { .. } => "TaskQueueError".to_string(),
             TemporalError::Generic { .. } => "Generic".to_string(),
             TemporalError::WorkerInitializationError { .. } => "WorkerInitializationError".to_string(),
+            TemporalError::ClientNotInitialized => "ClientNotInitialized".to_string(),
+            TemporalError::WorkerAlreadyRunning => "WorkerAlreadyRunning".to_string(),
+            TemporalError::WorkflowNotFoundWithRun { .. } => "WorkflowNotFoundWithRun".to_string(),
         }
     }
     

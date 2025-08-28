@@ -2,12 +2,10 @@
 -- This script sets up the initial database structure for development
 
 -- Create the main database if it doesn't exist
-SELECT 'CREATE DATABASE adx_core'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'adx_core');
+SELECT 'CREATE DATABASE adx_core' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'adx_core')\gexec
 
 -- Create the test database if it doesn't exist
-SELECT 'CREATE DATABASE adx_core_test'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'adx_core_test');
+SELECT 'CREATE DATABASE adx_core_test' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'adx_core_test')\gexec
 
 -- Connect to the main database
 \c adx_core;
@@ -119,7 +117,7 @@ CREATE INDEX IF NOT EXISTS idx_workflow_executions_workflow_id ON workflow_execu
 -- Insert default tenant for development
 INSERT INTO tenants (id, name, admin_email, subscription_tier, isolation_level)
 VALUES (
-    'default-tenant-id'::UUID,
+    'f47ac10b-58cc-4372-a567-0e02b2c3d479'::UUID,
     'Default Tenant',
     'admin@adxcore.local',
     'enterprise',
@@ -129,7 +127,7 @@ VALUES (
 -- Insert demo tenant for testing
 INSERT INTO tenants (id, name, admin_email, subscription_tier, isolation_level)
 VALUES (
-    'demo-tenant-id'::UUID,
+    'a47ac10b-58cc-4372-a567-0e02b2c3d479'::UUID,
     'Demo Tenant',
     'demo@adxcore.local',
     'professional',
@@ -139,8 +137,8 @@ VALUES (
 -- Insert default admin user (password: admin123)
 INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, roles)
 VALUES (
-    'default-admin-id'::UUID,
-    'default-tenant-id'::UUID,
+    'b47ac10b-58cc-4372-a567-0e02b2c3d479'::UUID,
+    'f47ac10b-58cc-4372-a567-0e02b2c3d479'::UUID,
     'admin@adxcore.local',
     '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.s5uO8G', -- admin123
     'Admin',
@@ -151,8 +149,8 @@ VALUES (
 -- Insert demo user (password: demo123)
 INSERT INTO users (id, tenant_id, email, password_hash, first_name, last_name, roles)
 VALUES (
-    'demo-user-id'::UUID,
-    'demo-tenant-id'::UUID,
+    'c47ac10b-58cc-4372-a567-0e02b2c3d479'::UUID,
+    'a47ac10b-58cc-4372-a567-0e02b2c3d479'::UUID,
     'demo@adxcore.local',
     '$2b$12$8K1p/a0dhrxSMxf7RqiOy.Hm6M8K9Z8K1p/a0dhrxSMxf7RqiOy.', -- demo123
     'Demo',

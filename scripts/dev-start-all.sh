@@ -104,9 +104,9 @@ print_section "🏗️  Setting Up Infrastructure Services"
 # Navigate to infrastructure directory
 cd adx-core/infrastructure/docker
 
-# Start infrastructure services
-print_status "Starting PostgreSQL, Redis, Temporal, and monitoring services..."
-docker compose -f docker-compose.dev.yml up -d
+# Start PostgreSQL and Redis first
+print_status "Starting PostgreSQL and Redis..."
+docker compose -f docker-compose.dev.yml up -d postgres redis
 
 # Wait for services to be ready
 print_status "Waiting for infrastructure services to be ready..."
@@ -138,18 +138,28 @@ until docker compose -f docker-compose.dev.yml exec -T redis redis-cli ping > /d
 done
 print_success "Redis is ready"
 
+# Setup Temporal schema
+# Setup Temporal schema
+print_status "Setting up Temporal database schema..."
+docker compose -f docker-compose.dev.yml run --rm temporal-admin-tools setup-schema -v 0.0 --db adx_core
+print_success "Temporal schema setup complete"
+
+# Start the rest of the services
+print_status "Starting remaining services..."
+docker compose -f docker-compose.dev.yml up -d
+
 # Wait for Temporal
-# print_status "Waiting for Temporal..."
-# counter=0
-# until docker exec adx-temporal tctl cluster health > /dev/null 2>&1; do
-#     sleep 5
-#     counter=$((counter + 5))
-#     if [ $counter -ge 120 ]; then
-#         print_error "Temporal failed to start within 120 seconds"
-#         exit 1
-#     fi
-# done
-# print_success "Temporal is ready"
+print_status "Waiting for Temporal..."
+counter=0
+until docker compose -f docker-compose.dev.yml exec -T temporal operator cluster health --address 127.0.0.1:7233 > /dev/null 2>&1; do
+    sleep 5
+    counter=$((counter + 5))
+    if [ $counter -ge 60 ]; then
+        print_error "Temporal failed to start within 60 seconds"
+        exit 1
+    fi
+done
+print_success "Temporal is ready"
 
 # Navigate back to workspace root
 cd ../../..

@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:14
+    image: postgres:12
     container_name: adx-postgres
     environment:
       POSTGRES_DB: adx_core
@@ -13,7 +13,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - "postgres_data:/var/lib/postgresql/data"
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -36,42 +36,56 @@ services:
       retries: 5
 
   # Temporal Server
-  # temporal:
-  #   image: temporalio/auto-setup:latest
-  #   container_name: adx-temporal
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   environment:
-  #     - DB=postgres12
-  #     - DB_PORT=5432
-  #     - POSTGRES_USER=postgres
-  #     - POSTGRES_PWD=postgres
-  #     - POSTGRES_SEEDS=adx-postgres
-  #     - POSTGRES_DATABASE=adx_core
-  #     - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-  #   ports:
-  #     - "7233:7233"
-  #   volumes:
-  #     - ./temporal-config:/etc/temporal/config/dynamicconfig
-  #   healthcheck:
-  #     test: ["CMD", "tctl", "--address", "temporal:7233", "workflow", "list"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: adx-temporal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_SEEDS=adx-postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=postgres
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
 
-  # # Temporal UI
-  # temporal-ui:
-  #   image: temporalio/ui:latest
-  #   container_name: adx-temporal-ui
-  #   depends_on:
-  #     temporal:
-  #       condition: service_healthy
-  #   environment:
-  #     - TEMPORAL_GRPC_ENDPOINT=temporal:7233
-  #     - TEMPORAL_PERMIT_WRITE_API=true
-  #   ports:
-  #     - "8088:8088"
+    ports:
+      - "7233:7233"
+    volumes:
+      - ./temporal-config:/etc/temporal/config/dynamicconfig
+    healthcheck:
+      disable: true
+      # test: ["CMD-SHELL", "temporal operator cluster health --address 127.0.0.1:7233 || exit 1"]
+      # interval: 30s
+      # timeout: 10s
+      # retries: 3
+      # start_period: 120s
+      
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.21.4 # match your Temporal server version
+    container_name: adx-temporal-admin-tools
+    environment:
+      TEMPORAL_CLI_ADDRESS: temporal:7233
+    depends_on:
+      - temporal
+    stdin_open: true
+    tty: true
+
+  # Temporal UI
+  temporal-ui:
+    image: temporalio/ui:latest
+    container_name: adx-temporal-ui
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_GRPC_ENDPOINT=temporal:7233
+      - TEMPORAL_PERMIT_WRITE_API=true
+    ports:
+      - "8088:8088"
 
   # Jaeger for distributed tracing
   jaeger:

@@ -17,6 +17,18 @@ pub enum TemporalError {
     #[error("Workflow execution failed: {workflow_id} - {message}")]
     WorkflowExecutionError { workflow_id: String, message: String },
     
+    /// SDK client not initialized
+    #[error("Temporal SDK client not initialized")]
+    ClientNotInitialized,
+    
+    /// Worker already running
+    #[error("Temporal worker already running")]
+    WorkerAlreadyRunning,
+    
+    /// Workflow not found with run ID
+    #[error("Workflow not found: {workflow_id}:{run_id}")]
+    WorkflowNotFoundWithRun { workflow_id: String, run_id: String },
+    
     /// Activity execution errors
     #[error("Activity execution failed: {activity_id} - {message}")]
     ActivityExecutionError { activity_id: String, message: String },
@@ -94,6 +106,9 @@ impl TemporalError {
             TemporalError::WorkflowExecutionError { .. } => true,
             TemporalError::ActivityExecutionError { .. } => true,
             TemporalError::WorkerInitializationError { .. } => false,
+            TemporalError::ClientNotInitialized => false,
+            TemporalError::WorkerAlreadyRunning => false,
+            TemporalError::WorkflowNotFoundWithRun { .. } => false,
         }
     }
     
@@ -116,6 +131,9 @@ impl TemporalError {
             TemporalError::WorkerError { .. } => ErrorCategory::Infrastructure,
             TemporalError::TaskQueueError { .. } => ErrorCategory::Infrastructure,
             TemporalError::Generic { .. } => ErrorCategory::Unknown,
+            TemporalError::ClientNotInitialized => ErrorCategory::Configuration,
+            TemporalError::WorkerAlreadyRunning => ErrorCategory::Infrastructure,
+            TemporalError::WorkflowNotFoundWithRun { .. } => ErrorCategory::NotFound,
         }
     }
     
@@ -138,6 +156,9 @@ impl TemporalError {
             TemporalError::WorkerError { .. } => ErrorSeverity::High,
             TemporalError::TaskQueueError { .. } => ErrorSeverity::Medium,
             TemporalError::Generic { .. } => ErrorSeverity::Medium,
+            TemporalError::ClientNotInitialized => ErrorSeverity::Critical,
+            TemporalError::WorkerAlreadyRunning => ErrorSeverity::Low,
+            TemporalError::WorkflowNotFoundWithRun { .. } => ErrorSeverity::Low,
         }
     }
 }
@@ -208,6 +229,12 @@ pub enum WorkflowError {
     
     #[error("Security violation: {message}")]
     SecurityViolation { message: String },
+    
+    #[error("Workflow cancelled: {workflow_id}")]
+    Cancelled { workflow_id: String },
+    
+    #[error("Serialization error in workflow {workflow_id}: {error}")]
+    SerializationError { workflow_id: String, error: String },
 }
 
 /// Activity-specific error types

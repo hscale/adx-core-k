@@ -2,9 +2,10 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 use tracing::{info, error, debug};
+use async_trait::async_trait;
 
-// Note: Using simplified worker implementation until SDK Core API stabilizes
 use crate::temporal::{TemporalConfig, TemporalError};
+use crate::temporal::sdk_client::{TemporalSDKClient, TemporalWorker, WorkerConfig};
 
 /// Worker instance placeholder for SDK Core integration
 #[derive(Debug)]
@@ -14,16 +15,16 @@ pub struct WorkerInstance {
     pub is_running: bool,
 }
 
-/// ADX Core Temporal Worker
-/// Manages workflow and activity execution (SDK integration ready)
-pub struct AdxTemporalWorker {
+/// ADX Core Temporal Worker Manager
+/// Manages workflow and activity execution with real SDK integration
+pub struct AdxTemporalWorkerManager {
     config: TemporalConfig,
-    // client: Arc<AdxTemporalClient>,  // Commented out due to SDK compatibility
+    sdk_client: Arc<TemporalSDKClient>,
     task_queues: Vec<String>,
     workflow_registry: Arc<RwLock<HashMap<String, Box<dyn WorkflowFunction>>>>,
     activity_registry: Arc<RwLock<HashMap<String, Box<dyn ActivityFunction>>>>,
     worker_identity: String,
-    workers: Arc<RwLock<Vec<WorkerInstance>>>,
+    workers: Arc<RwLock<HashMap<String, Arc<TemporalWorker>>>>,
 }
 
 /// Trait for workflow functions
@@ -74,11 +75,10 @@ pub enum ActivityExecutionError {
     NonRetryable { message: String },
 }
 
-impl AdxTemporalWorker {
-    /// Create a new Temporal worker (SDK integration ready)
+impl AdxTemporalWorkerManager {
+    /// Create a new Temporal worker manager with SDK integration
     pub async fn new(
         config: TemporalConfig,
-        // client: Arc<AdxTemporalClient>,  // Commented out due to SDK compatibility
         task_queues: Vec<String>,
     ) -> Result<Self, TemporalError> {
         let worker_identity = format!("adx-worker-{}", uuid::Uuid::new_v4());
@@ -86,17 +86,20 @@ impl AdxTemporalWorker {
         info!(
             worker_identity = %worker_identity,
             task_queues = ?task_queues,
-            "Creating ADX Temporal worker with SDK Core"
+            "Creating ADX Temporal worker manager with SDK integration"
         );
+        
+        // Create SDK client
+        let sdk_client = Arc::new(TemporalSDKClient::new(config.clone()).await?);
         
         Ok(Self {
             config,
-            // client,  // Commented out due to SDK compatibility
+            sdk_client,
             task_queues,
             workflow_registry: Arc::new(RwLock::new(HashMap::new())),
             activity_registry: Arc::new(RwLock::new(HashMap::new())),
             worker_identity,
-            workers: Arc::new(RwLock::new(Vec::new())),
+            workers: Arc::new(RwLock::new(HashMap::new())),
         })
     }
     
@@ -146,43 +149,37 @@ impl AdxTemporalWorker {
         Ok(())
     }
     
-    /// Start the worker
+    /// Start the worker manager
     pub async fn start(&self) -> Result<(), TemporalError> {
         info!(
             worker_identity = %self.worker_identity,
             task_queues = ?self.task_queues,
-            "Starting ADX Temporal worker with SDK Core"
+            "Starting ADX Temporal worker manager with SDK integration"
         );
         
         let mut workers = self.workers.write().await;
         
-        // Create a worker for each task queue
+        // Create a worker for each task queue using the SDK client
         for task_queue in &self.task_queues {
-            // Create worker config (SDK integration ready)
-            let mut worker_config = std::collections::HashMap::new();
-            worker_config.insert("task_queue".to_string(), task_queue.clone());
-            worker_config.insert("worker_identity".to_string(), self.worker_identity.clone());
-            
             info!(
                 task_queue = task_queue,
                 worker_identity = %self.worker_identity,
-                config = ?worker_config,
-                "Creating worker configuration"
+                "Creating SDK worker for task queue"
             );
             
-            // Create worker instance (placeholder for SDK Core integration)
-            let worker = WorkerInstance {
-                task_queue: task_queue.clone(),
-                worker_identity: self.worker_identity.clone(),
-                is_running: true,
-            };
+            // Create worker using SDK client
+            let worker = self.sdk_client.create_worker(task_queue).await?;
+            let worker_arc = Arc::new(worker);
             
-            workers.push(worker);
+            // Start the worker
+            worker_arc.start().await?;
+            
+            workers.insert(task_queue.clone(), worker_arc);
             
             info!(
                 task_queue = task_queue,
                 worker_identity = %self.worker_identity,
-                "Started worker for task queue (SDK Core integration ready)"
+                "Started SDK worker for task queue"
             );
         }
         
@@ -191,7 +188,7 @@ impl AdxTemporalWorker {
             worker_count = workers.len(),
             workflow_count = self.workflow_registry.read().await.len(),
             activity_count = self.activity_registry.read().await.len(),
-            "ADX Temporal worker started successfully with SDK Core"
+            "ADX Temporal worker manager started successfully with SDK integration"
         );
         
         Ok(())
@@ -199,28 +196,28 @@ impl AdxTemporalWorker {
     
 
     
-    /// Stop the worker
+    /// Stop the worker manager
     pub async fn stop(&self) -> Result<(), TemporalError> {
         info!(
             worker_identity = %self.worker_identity,
-            "Stopping ADX Temporal worker"
+            "Stopping ADX Temporal worker manager"
         );
         
         let mut workers = self.workers.write().await;
         
         // Stop all workers
-        for mut worker in workers.drain(..) {
-            worker.is_running = false;
+        for (task_queue, worker) in workers.drain() {
+            worker.stop().await?;
             info!(
-                task_queue = worker.task_queue,
-                worker_identity = worker.worker_identity,
-                "Stopped worker"
+                task_queue = task_queue,
+                worker_identity = %self.worker_identity,
+                "Stopped SDK worker"
             );
         }
         
         info!(
             worker_identity = %self.worker_identity,
-            "ADX Temporal worker stopped"
+            "ADX Temporal worker manager stopped"
         );
         
         Ok(())
@@ -273,48 +270,43 @@ mod tests {
     }
     
     #[tokio::test]
-    async fn test_worker_creation() {
+    async fn test_worker_manager_creation() {
         let config = TemporalConfig::development();
         let task_queues = vec!["test-queue".to_string()];
         
-        // Create a client for testing
-        let client = Arc::new(AdxTemporalClient::new(config.clone()).await.unwrap());
+        let worker_manager = AdxTemporalWorkerManager::new(config, task_queues).await;
+        assert!(worker_manager.is_ok());
         
-        let worker = AdxTemporalWorker::new(config, client, task_queues).await;
-        assert!(worker.is_ok());
-        
-        let worker = worker.unwrap();
-        assert_eq!(worker.task_queues(), &["test-queue"]);
-        assert!(worker.worker_identity().starts_with("adx-worker-"));
+        let worker_manager = worker_manager.unwrap();
+        assert_eq!(worker_manager.task_queues(), &["test-queue"]);
+        assert!(worker_manager.worker_identity().starts_with("adx-worker-"));
     }
     
     #[tokio::test]
     async fn test_workflow_registration() {
         let config = TemporalConfig::development();
         let task_queues = vec!["test-queue".to_string()];
-        let client = Arc::new(AdxTemporalClient::new(config.clone()).await.unwrap());
-        let worker = AdxTemporalWorker::new(config, client, task_queues).await.unwrap();
+        let worker_manager = AdxTemporalWorkerManager::new(config, task_queues).await.unwrap();
         
         // Register workflow
-        let result = worker.register_workflow("test-workflow", TestWorkflow).await;
+        let result = worker_manager.register_workflow("test-workflow", TestWorkflow).await;
         assert!(result.is_ok());
         
         // Check workflow count
-        assert_eq!(worker.workflow_count().await, 1);
+        assert_eq!(worker_manager.workflow_count().await, 1);
     }
     
     #[tokio::test]
     async fn test_activity_registration() {
         let config = TemporalConfig::development();
         let task_queues = vec!["test-queue".to_string()];
-        let client = Arc::new(AdxTemporalClient::new(config.clone()).await.unwrap());
-        let worker = AdxTemporalWorker::new(config, client, task_queues).await.unwrap();
+        let worker_manager = AdxTemporalWorkerManager::new(config, task_queues).await.unwrap();
         
         // Register activity
-        let result = worker.register_activity("test-activity", TestActivity).await;
+        let result = worker_manager.register_activity("test-activity", TestActivity).await;
         assert!(result.is_ok());
         
         // Check activity count
-        assert_eq!(worker.activity_count().await, 1);
+        assert_eq!(worker_manager.activity_count().await, 1);
     }
 }
